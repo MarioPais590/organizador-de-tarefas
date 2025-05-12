@@ -9,6 +9,8 @@ import { toast } from 'sonner';
  */
 export const login = async (email: string, senha: string) => {
   try {
+    console.log("Tentando login para:", email);
+    
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password: senha,
@@ -16,18 +18,67 @@ export const login = async (email: string, senha: string) => {
     
     if (error) throw error;
     
-    // Garantir que a sessão esteja persistida
+    // Garantir que a sessão esteja persistida em vários locais para maior compatibilidade
     if (data.session) {
-      // O supabase já se encarrega de armazenar a sessão,
-      // mas podemos verificar se foi salva corretamente
-      const authData = localStorage.getItem('supabase_auth_token');
-      if (!authData) {
-        console.warn("Aviso: Dados de autenticação não foram persistidos automaticamente");
-        // Forçar salvamento manual da sessão
-        localStorage.setItem('supabase_auth_token', JSON.stringify({
+      console.log("Login bem-sucedido, salvando sessão...");
+      
+      try {
+        // Criar objeto de token para reutilização
+        const tokenObj = {
           access_token: data.session.access_token,
           refresh_token: data.session.refresh_token
-        }));
+        };
+        const tokenStr = JSON.stringify(tokenObj);
+        
+        // Salvar em localStorage para desktop
+        try {
+          localStorage.setItem('supabase_auth_token', tokenStr);
+          console.log("Token salvo em localStorage");
+        } catch (lsError) {
+          console.warn("Erro ao salvar em localStorage:", lsError);
+        }
+        
+        // Salvar também na sessionStorage para algumas implementações mobile
+        try {
+          sessionStorage.setItem('supabase_auth_token', tokenStr);
+          console.log("Token salvo em sessionStorage");
+        } catch (ssError) {
+          console.warn("Erro ao salvar em sessionStorage:", ssError);
+        }
+        
+        // Força configuração do Cookie para maior compatibilidade
+        // Usar 30 dias de expiração e SameSite=Lax para compatibilidade mobile
+        try {
+          document.cookie = `supabase_auth_token=${encodeURIComponent(tokenStr)}; path=/; max-age=2592000; SameSite=Lax`;
+          console.log("Token salvo em cookie");
+        } catch (cookieError) {
+          console.warn("Erro ao salvar em cookie:", cookieError);
+        }
+        
+        // Verificar se tokens foram salvos corretamente
+        let savedLocalStorage = false;
+        let savedSessionStorage = false;
+        let savedCookie = false;
+        
+        try {
+          savedLocalStorage = !!localStorage.getItem('supabase_auth_token');
+          savedSessionStorage = !!sessionStorage.getItem('supabase_auth_token');
+          savedCookie = document.cookie.includes('supabase_auth_token=');
+        } catch (checkError) {
+          console.warn("Erro ao verificar storages:", checkError);
+        }
+        
+        console.log("Sessão salva em localStorage:", savedLocalStorage);
+        console.log("Sessão salva em sessionStorage:", savedSessionStorage);
+        console.log("Sessão salva em cookie:", savedCookie);
+        
+        if (!savedLocalStorage && !savedSessionStorage && !savedCookie) {
+          console.warn("ALERTA: Nenhum dos métodos de armazenamento funcionou!");
+        }
+        
+      } catch (storageError) {
+        console.warn("Erro ao salvar sessão em storages:", storageError);
+        // Continuar mesmo se o storage falhar
       }
     }
     
@@ -134,6 +185,7 @@ export const logout = async (): Promise<boolean> => {
     
     // Limpar quaisquer dados locais da sessão
     localStorage.removeItem('supabase_auth_token');
+    sessionStorage.removeItem('supabase_auth_token');
     
     // Limpar possíveis valores salvos adicionais
     for (const key of Object.keys(localStorage)) {
@@ -169,38 +221,177 @@ export const tryAutoLogin = async () => {
     
     if (sessionData.session) {
       console.log("Sessão existente encontrada");
+      
+      // Mesmo com sessão encontrada, vamos reforçar o salvamento em todos os storages
+      try {
+        localStorage.setItem('supabase_auth_token', JSON.stringify({
+          access_token: sessionData.session.access_token,
+          refresh_token: sessionData.session.refresh_token
+        }));
+        
+        sessionStorage.setItem('supabase_auth_token', JSON.stringify({
+          access_token: sessionData.session.access_token,
+          refresh_token: sessionData.session.refresh_token
+        }));
+        
+        document.cookie = `supabase_auth_token=${encodeURIComponent(JSON.stringify({
+          access_token: sessionData.session.access_token,
+          refresh_token: sessionData.session.refresh_token
+        }))}; path=/; max-age=2592000; SameSite=Lax`; // 30 dias
+      } catch (storageError) {
+        console.warn("Erro ao reforçar tokens nos storages:", storageError);
+      }
+      
       return { sucesso: true, session: sessionData.session, error: null };
     }
     
-    // Se não há sessão, verificar se temos um token no localStorage
-    const tokenData = localStorage.getItem('supabase_auth_token');
-    if (tokenData) {
-      try {
-        console.log("Token encontrado no localStorage, tentando restaurar sessão");
-        const parsedToken = JSON.parse(tokenData);
-        
-        // Tentar restaurar a sessão com o token salvo
-        if (parsedToken.refresh_token) {
-          const { data, error } = await supabase.auth.refreshSession({
-            refresh_token: parsedToken.refresh_token
-          });
-          
-          if (error) {
-            console.error("Erro ao restaurar sessão:", error);
-            // Se falhar, limpar o token inválido
-            localStorage.removeItem('supabase_auth_token');
-            throw error;
+    console.log("Sessão não encontrada, verificando storages...");
+    
+    // Verificar todas as possíveis fontes de token
+    let parsedToken = null;
+    
+    // Tentar obter token de todas as fontes possíveis e usar o primeiro válido encontrado
+    const fontes = ['localStorage', 'sessionStorage', 'cookies', 'indexedDB'];
+    
+    // 1. Verificar localStorage
+    try {
+      const tokenData = localStorage.getItem('supabase_auth_token');
+      if (tokenData) {
+        console.log("Token encontrado no localStorage");
+        try {
+          parsedToken = JSON.parse(tokenData);
+          if (parsedToken && parsedToken.refresh_token) {
+            console.log("Token do localStorage parece válido");
+          } else {
+            console.log("Token do localStorage parece inválido");
+            parsedToken = null;
           }
-          
-          if (data.session) {
-            console.log("Sessão restaurada com sucesso");
-            return { sucesso: true, session: data.session, error: null };
+        } catch (e) {
+          console.warn("Erro ao processar token do localStorage:", e);
+        }
+      }
+    } catch (e) {
+      console.warn("Erro ao acessar localStorage:", e);
+    }
+    
+    // 2. Se não encontrou no localStorage, verificar sessionStorage
+    if (!parsedToken) {
+      try {
+        const tokenData = sessionStorage.getItem('supabase_auth_token');
+        if (tokenData) {
+          console.log("Token encontrado no sessionStorage");
+          try {
+            parsedToken = JSON.parse(tokenData);
+            if (parsedToken && parsedToken.refresh_token) {
+              console.log("Token do sessionStorage parece válido");
+            } else {
+              console.log("Token do sessionStorage parece inválido");
+              parsedToken = null;
+            }
+          } catch (e) {
+            console.warn("Erro ao processar token do sessionStorage:", e);
           }
         }
+      } catch (e) {
+        console.warn("Erro ao acessar sessionStorage:", e);
+      }
+    }
+    
+    // 3. Se ainda não encontrou, tentar cookies
+    if (!parsedToken) {
+      try {
+        const cookies = document.cookie.split(';');
+        for (const cookie of cookies) {
+          const trimmedCookie = cookie.trim();
+          if (trimmedCookie.startsWith('supabase_auth_token=')) {
+            console.log("Token encontrado nos cookies");
+            try {
+              const tokenValue = trimmedCookie.substring('supabase_auth_token='.length);
+              if (tokenValue) {
+                parsedToken = JSON.parse(decodeURIComponent(tokenValue));
+                if (parsedToken && parsedToken.refresh_token) {
+                  console.log("Token do cookie parece válido");
+                  break;
+                } else {
+                  console.log("Token do cookie parece inválido");
+                  parsedToken = null;
+                }
+              }
+            } catch (e) {
+              console.warn("Erro ao processar token do cookie:", e);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Erro ao acessar cookies:", e);
+      }
+    }
+    
+    // 4. Verificar se há token persistido pelo próprio Supabase
+    if (!parsedToken) {
+      try {
+        // Tentar obter diretamente via Supabase
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          console.log("Token encontrado na sessão nativa do Supabase");
+          parsedToken = {
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token
+          };
+        }
+      } catch (e) {
+        console.warn("Erro ao verificar sessão nativa do Supabase:", e);
+      }
+    }
+    
+    // Se encontrou token em algum lugar, tentar restaurar sessão
+    if (parsedToken && parsedToken.refresh_token) {
+      console.log("Tentando restaurar sessão com token encontrado");
+      
+      try {
+        const { data, error } = await supabase.auth.refreshSession({
+          refresh_token: parsedToken.refresh_token
+        });
+        
+        if (error) {
+          console.error("Erro ao restaurar sessão:", error);
+          // Limpar tokens inválidos de todos os storages
+          cleanupAuthState();
+          throw error;
+        }
+        
+        if (data.session) {
+          console.log("Sessão restaurada com sucesso");
+          
+          // Re-salvar o token atualizado em todos os storages
+          try {
+            const tokenObj = {
+              access_token: data.session.access_token,
+              refresh_token: data.session.refresh_token
+            };
+            const tokenStr = JSON.stringify(tokenObj);
+            
+            localStorage.setItem('supabase_auth_token', tokenStr);
+            sessionStorage.setItem('supabase_auth_token', tokenStr);
+            
+            // Configurar cookie para longa duração e compatibilidade mobile
+            document.cookie = `supabase_auth_token=${encodeURIComponent(tokenStr)}; path=/; max-age=2592000; SameSite=Lax`; // 30 dias
+            
+            // Verificar se foi salvo corretamente
+            const lsCheck = localStorage.getItem('supabase_auth_token');
+            const ssCheck = sessionStorage.getItem('supabase_auth_token');
+            
+            console.log("Token salvo em localStorage:", !!lsCheck);
+            console.log("Token salvo em sessionStorage:", !!ssCheck);
+          } catch (e) {
+            console.warn("Erro ao atualizar token nos storages:", e);
+          }
+          
+          return { sucesso: true, session: data.session, error: null };
+        }
       } catch (err) {
-        console.error("Erro ao processar token do localStorage:", err);
-        // Limpar token inválido
-        localStorage.removeItem('supabase_auth_token');
+        console.error("Erro ao processar token encontrado:", err);
+        cleanupAuthState();
       }
     }
     
@@ -231,19 +422,47 @@ export const verificarAutenticacao = async () => {
  * relacionados à autenticação do localStorage
  */
 export const cleanupAuthState = () => {
-  // Remover token principal
+  // Remover token principal do localStorage
   localStorage.removeItem('supabase_auth_token');
   
+  // Remover token principal da sessionStorage
+  try {
+    sessionStorage.removeItem('supabase_auth_token');
+  } catch (e) {
+    console.warn("Erro ao limpar sessionStorage:", e);
+  }
+  
+  // Remover cookies de autenticação
+  try {
+    document.cookie = 'supabase_auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+  } catch (e) {
+    console.warn("Erro ao limpar cookies:", e);
+  }
+  
   // Remover qualquer outra chave relacionada ao supabase ou autenticação
-  for (const key of Object.keys(localStorage)) {
-    if (key.startsWith('supabase.auth.') || 
-        key.includes('supabase') || 
-        key.includes('auth') ||
-        key.includes('token')) {
-      localStorage.removeItem(key);
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('supabase.auth.') || 
+          key.includes('supabase') || 
+          key.includes('auth') ||
+          key.includes('token')) {
+        localStorage.removeItem(key);
+      }
     }
+    
+    // Fazer o mesmo para sessionStorage
+    for (const key of Object.keys(sessionStorage)) {
+      if (key.startsWith('supabase.auth.') || 
+          key.includes('supabase') || 
+          key.includes('auth') ||
+          key.includes('token')) {
+        sessionStorage.removeItem(key);
+      }
+    }
+  } catch (e) {
+    console.warn("Erro ao limpar storages adicionais:", e);
   }
   
   // Para depuração
-  console.log("Estado de autenticação limpo");
+  console.log("Estado de autenticação limpo completamente");
 }; 

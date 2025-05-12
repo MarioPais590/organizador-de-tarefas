@@ -1,10 +1,9 @@
-
-import { useApp } from "@/context/AppContext";
+import { useAuth } from "@/context/AuthContext";
 import { Navigate } from "react-router-dom";
 import { toast } from "sonner";
 
 export const AuthGuard = ({ children }: { children: React.ReactNode }) => {
-  const { user, isLoading } = useApp();
+  const { user, isLoading, isAuthenticated } = useAuth();
   
   // Aguardar verificação de autenticação
   if (isLoading) {
@@ -16,7 +15,7 @@ export const AuthGuard = ({ children }: { children: React.ReactNode }) => {
   }
   
   // Redirecionar para login se não estiver autenticado
-  if (!user) {
+  if (!isAuthenticated) {
     toast.error("Você precisa estar logado para acessar esta página", {
       id: "auth-required", // Evitar múltiplos toasts
     });

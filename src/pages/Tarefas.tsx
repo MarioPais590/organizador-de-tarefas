@@ -186,9 +186,11 @@ export default function Tarefas() {
         title="Tarefas" 
         description="Gerencie suas tarefas e atividades"
       >
-        <Button className="bg-azulPrincipal hover:bg-azulPrincipal/90" onClick={() => setDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Nova Tarefa
-        </Button>
+        <div className="flex gap-2 items-center">
+          <Button className="bg-azulPrincipal hover:bg-azulPrincipal/90" onClick={() => setDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> Nova Tarefa
+          </Button>
+        </div>
       </PageHeader>
 
       <NovaTarefaDialog 

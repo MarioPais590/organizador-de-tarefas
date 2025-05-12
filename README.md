@@ -1,6 +1,89 @@
 # Organizador de Tarefas
 
-Um aplicativo para organização de tarefas, rotinas e compromissos, desenvolvido com React, TypeScript e Supabase.
+Aplicativo web para gerenciamento de tarefas com notificações e anexos.
+
+## Recursos
+
+- Autenticação de usuários
+- Criação, edição e exclusão de tarefas
+- Categorização de tarefas
+- Anexos em tarefas (com compressão automática de imagens)
+- Notificações no navegador
+- Modo responsivo (desktop e mobile)
+- Tema claro e escuro
+
+## Tecnologias
+
+- React 18
+- TypeScript
+- Vite
+- Supabase (autenticação e banco de dados)
+- TailwindCSS
+- shadcn/ui
+- React Router v6
+- React Query
+- Sonner (toasts)
+
+## Estrutura do Projeto
+
+```
+src/
+├── components/     # Componentes reutilizáveis
+├── context/        # Contextos React com lógica de estado global
+├── hooks/          # Hooks personalizados
+├── integrations/   # Integrações com serviços externos
+├── lib/            # Bibliotecas e utilitários
+├── pages/          # Páginas da aplicação
+├── services/       # Serviços para chamadas à API
+├── types/          # Definições de tipos TypeScript
+└── utils/          # Funções utilitárias
+```
+
+## Arquitetura
+
+O projeto segue uma arquitetura modular baseada em contextos, onde:
+
+- **AuthContext**: Gerencia autenticação e sessão do usuário
+- **TaskContext**: Gerencia operações relacionadas a tarefas e categorias
+- **NotificationContext**: Gerencia notificações do navegador
+
+Cada contexto exporta um hook personalizado para fácil acesso aos seus dados e métodos.
+
+## Serviços
+
+Os serviços são responsáveis por interagir com o backend:
+
+- **taskService**: Operações CRUD para tarefas
+- **anexoService**: Gerenciamento de anexos (upload, processamento)
+- **categoriaService**: Operações CRUD para categorias
+- **notificationService**: Gerenciamento de notificações do navegador
+- **authService**: Autenticação e gestão de usuários
+
+## Inicialização
+
+Para iniciar o projeto em modo de desenvolvimento:
+
+```bash
+npm install
+npm run dev
+```
+
+Para construir o projeto para produção:
+
+```bash
+npm run build
+```
+
+## Banco de Dados
+
+O aplicativo utiliza o Supabase como backend, com as seguintes tabelas:
+
+- **profiles**: Perfis de usuário
+- **tarefas**: Tarefas do usuário
+- **categorias**: Categorias para organizar tarefas
+- **anexos**: Anexos de tarefas
+- **tarefa_anexos**: Relacionamento entre tarefas e anexos
+- **config_notificacoes**: Configurações de notificação do usuário
 
 ## Documentação
 

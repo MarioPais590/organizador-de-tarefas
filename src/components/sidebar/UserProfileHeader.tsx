@@ -1,4 +1,3 @@
-
 import { useApp } from '@/context/AppContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { User } from 'lucide-react';
@@ -8,9 +7,8 @@ type UserProfileHeaderProps = {
 };
 
 export function UserProfileHeader({ isCollapsed = false }: UserProfileHeaderProps) {
-  const { perfil, user } = useApp();
+  const { perfil } = useApp();
   const userName = perfil?.nome || 'Usuário';
-  const userEmail = user?.email || '';
   const avatarImage = perfil?.avatar || '';
 
   return (
@@ -27,9 +25,6 @@ export function UserProfileHeader({ isCollapsed = false }: UserProfileHeaderProp
       {!isCollapsed && (
         <div className="flex flex-col overflow-hidden">
           <span className="truncate font-medium text-sm">{userName}</span>
-          {userEmail && (
-            <span className="truncate text-xs text-muted-foreground">{userEmail}</span>
-          )}
         </div>
       )}
     </div>

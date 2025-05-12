@@ -6,6 +6,8 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { NavItems } from './NavItems';
 import { UserProfileHeader } from './UserProfileHeader';
 import { useApp } from '@/context/AppContext';
+import { NotificationButton } from '@/components/NotificationButton';
+import { Separator } from '@/components/ui/separator';
 
 export function MobileMenu() {
   const [open, setOpen] = useState(false);
@@ -35,6 +37,20 @@ export function MobileMenu() {
               <div className="flex-1 mt-6">
                 <NavItems onNavigation={() => setOpen(false)} />
               </div>
+              
+              {user && (
+                <>
+                  <Separator className="my-4" />
+                  <div className="mb-4 px-2">
+                    <NotificationButton 
+                      className="w-full justify-start" 
+                      variant="secondary"
+                      tooltipSide="right"
+                      label="Ativar/Testar Notificações"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </SheetContent>
         </Sheet>

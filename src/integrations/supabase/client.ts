@@ -5,6 +5,27 @@ import type { Database } from './types';
 const SUPABASE_URL = "https://gigwskujftrqvvulfayl.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpZ3dza3VqZnRycXZ2dWxmYXlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY4MzU1ODEsImV4cCI6MjA2MjQxMTU4MX0.TyIJexHoZNmsnPJcOmxpfHI0gerOxC6NMqKQWTv4ghA";
 
+// Verificar se o localStorage está disponível
+const isLocalStorageAvailable = () => {
+  try {
+    const testKey = '__supabase_test__';
+    localStorage.setItem(testKey, testKey);
+    localStorage.removeItem(testKey);
+    return true;
+  } catch (e) {
+    console.error('localStorage não está disponível:', e);
+    return false;
+  }
+};
+
+// Configurações de autenticação
+const authConfig = {
+  autoRefreshToken: true,
+  persistSession: true,
+  storageKey: 'supabase_auth_token',
+  storage: isLocalStorageAvailable() ? localStorage : undefined
+};
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
@@ -13,11 +34,6 @@ export const supabase = createClient<Database>(
   SUPABASE_URL,
   SUPABASE_PUBLISHABLE_KEY,
   {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      storageKey: 'supabase_auth_token',
-      storage: localStorage
-    }
+    auth: authConfig
   }
 );

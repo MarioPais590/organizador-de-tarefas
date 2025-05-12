@@ -1,12 +1,12 @@
-
 import React from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Paperclip, FilePen, FileX } from "lucide-react";
+import { Paperclip, FilePen, FileX, Eye } from "lucide-react";
 import { Anexo, Tarefa } from "@/types";
 import { formatarData } from "@/utils/dateUtils";
 import { IconeAnexo } from "./IconeAnexo";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { toast } from "sonner";
 
 interface DetalhesTarefaDialogProps {
   open: boolean;
@@ -24,6 +24,49 @@ export const DetalhesTarefaDialog = ({
   onRemoverAnexo
 }: DetalhesTarefaDialogProps) => {
   const isMobile = useIsMobile();
+  
+  const visualizarAnexo = (anexo: Anexo) => {
+    try {
+      // Verificar se temos o conteúdo do anexo
+      if (anexo.conteudo) {
+        // Criar URL para visualização usando conteúdo
+        const url = window.URL.createObjectURL(
+          dataURLtoBlob(anexo.conteudo)
+        );
+        
+        // Abrir em nova aba
+        window.open(url, '_blank');
+      } else if (anexo.url) {
+        // Usar URL já existente, se disponível
+        window.open(anexo.url, '_blank');
+      } else {
+        toast.error("Não foi possível visualizar este anexo");
+      }
+    } catch (error) {
+      console.error("Erro ao visualizar anexo:", error);
+      toast.error("Erro ao abrir o anexo");
+    }
+  };
+  
+  // Função auxiliar para converter Data URL para Blob
+  const dataURLtoBlob = (dataURL: string) => {
+    try {
+      const arr = dataURL.split(',');
+      const mime = arr[0].match(/:(.*?);/)?.[1] || '';
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      
+      return new Blob([u8arr], { type: mime });
+    } catch (error) {
+      console.error("Erro ao converter data URL para blob:", error);
+      throw error;
+    }
+  };
   
   if (!tarefa) return null;
 
@@ -86,14 +129,12 @@ export const DetalhesTarefaDialog = ({
                   >
                     <div className="flex items-center gap-2 overflow-hidden">
                       <IconeAnexo tipo={anexo.tipo} />
-                      <a 
-                        href={anexo.url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-sm hover:underline truncate max-w-[150px] md:max-w-[200px]"
+                      <span
+                        className="text-sm hover:underline truncate max-w-[150px] md:max-w-[200px] cursor-pointer"
+                        onClick={() => visualizarAnexo(anexo)}
                       >
                         {anexo.nome}
-                      </a>
+                      </span>
                     </div>
                     <div className="flex gap-1 flex-shrink-0">
                       <Button 
@@ -101,7 +142,18 @@ export const DetalhesTarefaDialog = ({
                         size="icon" 
                         variant="ghost" 
                         className="h-7 w-7"
+                        onClick={() => visualizarAnexo(anexo)}
+                        title="Visualizar"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button 
+                        type="button" 
+                        size="icon" 
+                        variant="ghost" 
+                        className="h-7 w-7"
                         onClick={() => onEditarAnexo(anexo.id, anexo.nome)}
+                        title="Editar nome"
                       >
                         <FilePen className="h-3.5 w-3.5" />
                       </Button>
@@ -111,6 +163,7 @@ export const DetalhesTarefaDialog = ({
                         variant="ghost" 
                         className="h-7 w-7 text-destructive"
                         onClick={() => onRemoverAnexo(anexo.id)}
+                        title="Remover"
                       >
                         <FileX className="h-3.5 w-3.5" />
                       </Button>

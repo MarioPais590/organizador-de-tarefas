@@ -22,6 +22,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { verificarSuporteNotificacoes } from "@/services/notificationService";
 
 interface NovaTarefaDialogProps {
   open: boolean;
@@ -66,6 +67,7 @@ export const NovaTarefaDialog = ({
   const [date, setDate] = useState<Date | undefined>(novaData ? new Date(novaData) : undefined);
   const { configNotificacoes } = useApp();
   const [notificar, setNotificar] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   
   // Atualizar data interna quando mudar a externa
   useEffect(() => {
@@ -75,6 +77,14 @@ export const NovaTarefaDialog = ({
       setDate(undefined);
     }
   }, [novaData]);
+  
+  // Resetar isLoading quando o diálogo fechar
+  useEffect(() => {
+    if (!open && isLoading) {
+      console.log("Diálogo de nova tarefa fechado, resetando estado de carregamento");
+      setIsLoading(false);
+    }
+  }, [open, isLoading]);
   
   // Ao selecionar data no calendário, atualizar estado
   const handleDateSelect = (selectedDate: Date | undefined) => {
@@ -87,6 +97,37 @@ export const NovaTarefaDialog = ({
     }
   };
   
+  // Função para salvar tarefa com indicação de carregamento
+  const handleAddTarefa = () => {
+    setIsLoading(true);
+    
+    // Adicionar log detalhado para debug
+    console.log("=== Dados da tarefa a ser salva ===");
+    console.log("Título:", novoTitulo);
+    console.log("Data:", novaData);
+    console.log("Hora:", novaHora);
+    console.log("Categoria:", novaCategoria);
+    console.log("Notificar:", notificar);
+    console.log("Anexos:", anexos ? anexos.length : 0, "anexos");
+    
+    // Lista os anexos para verificar se foram processados corretamente
+    if (anexos && anexos.length > 0) {
+      anexos.forEach((anexo, index) => {
+        console.log(`Anexo ${index+1}:`, anexo.nome, anexo.tipo, 
+          anexo.conteudo ? `${anexo.conteudo.substring(0, 50)}...` : 'sem conteúdo');
+      });
+    }
+    
+    // Chamar a função de adicionar tarefa
+    onAddTarefa(notificar);
+    
+    // Resetar o estado de carregamento e fechar o diálogo após um breve intervalo
+    setTimeout(() => {
+      setIsLoading(false);
+      onOpenChange(false);
+    }, 800);
+  };
+  
   // Gerar ID único para anexos temporários
   const gerarIdTemporario = () => {
     return 'temp_' + Math.random().toString(36).substring(2, 11);
@@ -94,34 +135,126 @@ export const NovaTarefaDialog = ({
   
   // Manipular seleção de arquivo
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     
-    const file = e.target.files[0];
+    const file = files[0];
+    const fileSize = file.size / 1024 / 1024; // tamanho em MB
     
-    // Verificar tamanho do arquivo (limite: 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("O arquivo não pode ser maior que 5MB");
+    // Limitar tamanho do arquivo (2MB máximo)
+    if (fileSize > 2) {
+      toast.error("O arquivo é muito grande. O tamanho máximo é de 2MB.");
       e.target.value = '';
       return;
     }
     
-    // Validar tipo de arquivo
-    if (!file.type.match(/^(image\/(jpeg|png|gif)|application\/(pdf|msword|vnd.openxmlformats-officedocument.wordprocessingml.document)|text\/plain|audio\/mpeg)$/)) {
-      toast.error("Tipo de arquivo não suportado");
+    console.log("Tentando processar arquivo:", file.name, "tipo:", file.type, "tamanho:", fileSize.toFixed(2) + "MB");
+    
+    // Verificar extensão do arquivo - é mais confiável do que MIME type
+    const extensao = file.name.split('.').pop()?.toLowerCase();
+    
+    // Verificar se a extensão é válida
+    if (!extensao || !['png', 'jpg', 'jpeg', 'pdf', 'txt', 'mp3'].includes(extensao)) {
+      toast.error("Tipo de arquivo não suportado. Apenas PNG, JPG, PDF, TXT e MP3 são permitidos.");
+      console.error("Extensão não suportada:", extensao);
       e.target.value = '';
       return;
     }
     
-    // Determinar tipo de arquivo para ícone
-    let tipoAnexo = 'outro';
-    if (file.type.startsWith('image/')) tipoAnexo = 'imagem';
-    else if (file.type.includes('pdf')) tipoAnexo = 'pdf';
-    else if (file.type.includes('word')) tipoAnexo = 'documento';
-    else if (file.type.includes('text/')) tipoAnexo = 'texto';
-    else if (file.type.includes('audio/')) tipoAnexo = 'audio';
+    // Determinar tipo de arquivo pela extensão, não pelo MIME type
+    const tipoAnexo = extensao === 'jpeg' ? 'jpg' : extensao;
     
-    // Ler conteúdo do arquivo
+    try {
+      // Criar URL para o arquivo
+      const fileUrl = URL.createObjectURL(file);
+      
+      // Processar o arquivo com base no seu tipo
+      if (tipoAnexo === 'png' || tipoAnexo === 'jpg') {
+        // Para imagens, usar compressão
+        processImageFile(file, tipoAnexo, fileUrl, e);
+      } else {
+        // Para outros tipos de arquivo, processar normalmente
+        processRegularFile(file, tipoAnexo, fileUrl, e);
+      }
+    } catch (error) {
+      console.error("Erro ao processar arquivo:", error);
+      toast.error("Erro ao processar o arquivo. Tente novamente.");
+      e.target.value = '';
+    }
+  };
+  
+  // Processar arquivo de imagem com compressão
+  const processImageFile = (file: File, tipoAnexo: string, fileUrl: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const img = new Image();
+    img.onload = () => {
+      // Criar canvas para redimensionar/comprimir a imagem
+      const canvas = document.createElement('canvas');
+      
+      // Calcular dimensões mantendo proporção
+      let width = img.width;
+      let height = img.height;
+      
+      // Limitar tamanho máximo
+      const MAX_WIDTH = 1200;
+      const MAX_HEIGHT = 1200;
+      
+      if (width > height) {
+        if (width > MAX_WIDTH) {
+          height = Math.round(height * (MAX_WIDTH / width));
+          width = MAX_WIDTH;
+        }
+      } else {
+        if (height > MAX_HEIGHT) {
+          width = Math.round(width * (MAX_HEIGHT / height));
+          height = MAX_HEIGHT;
+        }
+      }
+      
+      // Configurar canvas
+      canvas.width = width;
+      canvas.height = height;
+      
+      // Desenhar imagem no canvas
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        toast.error("Erro ao processar imagem");
+        return;
+      }
+      
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // Converter para Data URL com qualidade reduzida
+      const qualidade = 0.7; // 70% de qualidade
+      const dataUrl = canvas.toDataURL(`image/${tipoAnexo === 'jpg' ? 'jpeg' : tipoAnexo}`, qualidade);
+      
+      // Adicionar anexo ao estado
+      setAnexos([...anexos, {
+        id: gerarIdTemporario(),
+        nome: file.name,
+        tipo: tipoAnexo,
+        conteudo: dataUrl,
+        url: fileUrl
+      }]);
+      
+      console.log("Anexo de imagem criado com sucesso:", file.name, "tipo:", tipoAnexo);
+      
+      // Limpar input
+      e.target.value = '';
+    };
+    
+    img.onerror = () => {
+      console.error("Erro ao carregar imagem");
+      toast.error("Erro ao processar a imagem. Tente novamente.");
+      e.target.value = '';
+    };
+    
+    img.src = fileUrl;
+  };
+  
+  // Processar outros tipos de arquivo
+  const processRegularFile = (file: File, tipo: string, fileUrl: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const reader = new FileReader();
+    
     reader.onload = (event) => {
       // Certificar que conteúdo não é nulo
       if (!event.target || !event.target.result) {
@@ -131,19 +264,44 @@ export const NovaTarefaDialog = ({
       
       const conteudo = event.target.result as string;
       
+      // Verificar tamanho após conversão para base64
+      const conteudoBase64 = conteudo.split(',')[1] || '';
+      const sizeInMB = (conteudoBase64.length * 3/4) / (1024 * 1024);
+      
+      if (sizeInMB > 1) {
+        console.warn(`Conteúdo em base64 é muito grande: ${sizeInMB.toFixed(2)}MB`);
+        toast.error("O conteúdo do arquivo é muito grande após processamento. Use um arquivo menor.");
+        e.target.value = '';
+        return;
+      }
+      
+      // Log detalhado para depuração
+      console.log(`Processando anexo: ${file.name} (${tipo})`);
+      console.log(`- Tamanho base64: ${sizeInMB.toFixed(2)}MB`);
+      console.log(`- Primeiros 50 caracteres do conteúdo: ${conteudo.substring(0, 50)}...`);
+      
       // Adicionar anexo ao estado
       setAnexos([...anexos, {
         id: gerarIdTemporario(),
         nome: file.name,
-        tipo: tipoAnexo,
-        conteudo,
-        url: URL.createObjectURL(file)
+        tipo: tipo,
+        conteudo: conteudo,
+        url: fileUrl
       }]);
+      
+      console.log(`Anexo criado com sucesso: ${file.name}, tipo: ${tipo}`);
       
       // Limpar input
       e.target.value = '';
     };
     
+    reader.onerror = (error) => {
+      console.error("Erro ao ler arquivo:", error, reader.error);
+      toast.error("Erro ao processar o arquivo. Tente novamente.");
+      e.target.value = '';
+    };
+    
+    // Usar readAsDataURL para todos os tipos de arquivo, incluindo MP3
     reader.readAsDataURL(file);
   };
   
@@ -266,6 +424,11 @@ export const NovaTarefaDialog = ({
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
                       <p>{getNotificacaoTooltipText()}</p>
+                      {!verificarSuporteNotificacoes() && (
+                        <p className="text-red-500 text-xs mt-1">
+                          Seu dispositivo ou navegador atual pode não ser compatível com notificações.
+                        </p>
+                      )}
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -279,10 +442,15 @@ export const NovaTarefaDialog = ({
                   id="notificar"
                   checked={notificar} 
                   onCheckedChange={setNotificar}
-                  disabled={!configNotificacoes.ativadas}
+                  disabled={!configNotificacoes.ativadas || !verificarSuporteNotificacoes()}
                 />
               </div>
             </div>
+            {!verificarSuporteNotificacoes() && (
+              <p className="text-red-500 text-xs">
+                Notificações podem não funcionar neste dispositivo ou navegador.
+              </p>
+            )}
           </div>
           
           <div className="grid gap-2">
@@ -346,10 +514,7 @@ export const NovaTarefaDialog = ({
             Cancelar
           </Button>
           <Button 
-            onClick={() => {
-              console.log("Salvando tarefa com data:", novaData, "e hora:", novaHora, "notificar:", notificar);
-              onAddTarefa(notificar);
-            }}
+            onClick={handleAddTarefa}
             disabled={!novoTitulo || !novaData || !novaCategoria}
           >
             Adicionar Tarefa

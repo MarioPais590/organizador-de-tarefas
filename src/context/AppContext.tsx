@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { verificarTarefasPendentes, iniciarServicoNotificacoes, pararServicoNotificacoes, solicitarPermissaoNotificacao } from '@/services/notificationService';
 import { tryAutoLogin } from '@/services/authService';
 import { buscarTarefas } from '@/services/taskService';
+import { verificarMigracaoNotificar } from '@/utils/dbMigrations';
 
 // Criação do contexto com valor default undefined
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -89,6 +90,10 @@ function AppProvider({ children }: { children: React.ReactNode }) {
     const loadUserData = async () => {
       if (user) {
         try {
+          // Verificar e aplicar migrações do banco de dados
+          console.log("Verificando migrações necessárias...");
+          await verificarMigracaoNotificar();
+          
           // Carregar perfil
           const { data: perfilData, error: perfilError } = await supabase
             .from('profiles')
@@ -335,4 +340,4 @@ function AppProvider({ children }: { children: React.ReactNode }) {
 }
 
 // Exportar os componentes e hooks
-export { AppProvider, useApp, AppContext };
+export { AppProvider, useApp };

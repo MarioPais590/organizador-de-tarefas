@@ -1,4 +1,3 @@
-
 import { useApp } from "@/context/AppContext";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,11 +35,13 @@ export default function Dashboard() {
         title="Dashboard" 
         description="Visão geral das suas tarefas e atividades"
       >
-        <Link to="/tarefas">
-          <Button className="bg-azulPrincipal hover:bg-azulPrincipal/90">
-            <Plus className="mr-2 h-4 w-4" /> Nova Tarefa
-          </Button>
-        </Link>
+        <div className="flex gap-2 items-center">
+          <Link to="/tarefas">
+            <Button className="bg-azulPrincipal hover:bg-azulPrincipal/90">
+              <Plus className="mr-2 h-4 w-4" /> Nova Tarefa
+            </Button>
+          </Link>
+        </div>
       </PageHeader>
 
       {/* Cards melhor responsivos */}
