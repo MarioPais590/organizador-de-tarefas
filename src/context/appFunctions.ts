@@ -1,8 +1,9 @@
 import { Tarefa, Categoria, DadosPerfil, Rotina, ConfiguracoesNotificacao, Anexo } from '@/types';
 import { toast } from 'sonner';
 import { CATEGORIAS_PADRAO } from './types';
-import { solicitarPermissaoNotificacao, iniciarServicoNotificacoes, pararServicoNotificacoes } from '@/utils/notificacoes';
 import { supabase } from '@/integrations/supabase/client';
+import { logout as authLogout, cleanupAuthState } from '@/services/authService';
+import { solicitarPermissaoNotificacao, iniciarServicoNotificacoes, pararServicoNotificacoes } from '@/services/notificationService';
 
 export const createAppFunctions = (
   tarefas: Tarefa[],
@@ -582,8 +583,8 @@ export const createAppFunctions = (
         // Se precisamos de permissão e ainda não temos
         if (Notification.permission !== "granted") {
           try {
-            const permission = await solicitarPermissaoNotificacao();
-            if (permission !== "granted") {
+            const permissionGranted = await solicitarPermissaoNotificacao();
+            if (!permissionGranted) {
               toast.error("Permissão para notificações negada. As notificações não funcionarão.");
               // Permitir continuar para salvar outras configurações
             }

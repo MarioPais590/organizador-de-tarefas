@@ -1,4 +1,3 @@
-
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -92,4 +91,39 @@ export const formatarDataParaExibicao = (dataString: string): string => {
     console.error("Erro ao formatar data para exibição:", error);
     return dataString;
   }
+};
+
+/**
+ * Formata um intervalo de tempo em milissegundos para exibição em formato amigável
+ * @param milissegundos Tempo em milissegundos
+ * @returns String formatada (ex: "5 minutos", "1 hora e 30 minutos")
+ */
+export const formatarTempo = (milissegundos: number): string => {
+  // Converter para segundos
+  const segundos = Math.floor(milissegundos / 1000);
+  
+  // Se for menos de um minuto
+  if (segundos < 60) {
+    return `${segundos} segundo${segundos !== 1 ? 's' : ''}`;
+  }
+  
+  // Converter para minutos
+  const minutos = Math.floor(segundos / 60);
+  
+  // Se for menos de uma hora
+  if (minutos < 60) {
+    return `${minutos} minuto${minutos !== 1 ? 's' : ''}`;
+  }
+  
+  // Converter para horas e minutos
+  const horas = Math.floor(minutos / 60);
+  const minutosRestantes = minutos % 60;
+  
+  // Se não tiver minutos restantes
+  if (minutosRestantes === 0) {
+    return `${horas} hora${horas !== 1 ? 's' : ''}`;
+  }
+  
+  // Retornar formato horas e minutos
+  return `${horas} hora${horas !== 1 ? 's' : ''} e ${minutosRestantes} minuto${minutosRestantes !== 1 ? 's' : ''}`;
 };

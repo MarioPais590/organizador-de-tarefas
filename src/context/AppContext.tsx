@@ -2,11 +2,13 @@ import { createContext, useState, useEffect, useContext } from 'react';
 import { Tarefa, Categoria, DadosPerfil, Rotina, ConfiguracoesNotificacao } from '@/types';
 import { AppContextType, CATEGORIAS_PADRAO } from './types';
 import { createAppFunctions } from './appFunctions';
-import { verificarTarefasPendentes as checkTarefasPendentes, iniciarServicoNotificacoes, pararServicoNotificacoes, solicitarPermissaoNotificacao } from '@/utils/notificacoes';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
-import { cleanupAuthState, tryAutoLogin } from '@/utils/authUtils';
+
+// Importando os serviços
+import { verificarTarefasPendentes, iniciarServicoNotificacoes, pararServicoNotificacoes, solicitarPermissaoNotificacao } from '@/services/notificationService';
+import { tryAutoLogin } from '@/services/authService';
+import { buscarTarefas } from '@/services/taskService';
 
 // Criação do contexto
 export const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -42,7 +44,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Tentar auto login com credenciais salvas
     const attemptAutoLogin = async () => {
-      const { error } = await tryAutoLogin(supabase);
+      const { error } = await tryAutoLogin();
       if (error) {
         console.log("Auto login não realizado:", error);
       } else {
@@ -115,52 +117,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             })));
           }
           
-          // Carregar tarefas com categorias
-          const { data: tarefasData, error: tarefasError } = await supabase
-            .from('tarefas')
-            .select(`
-              *,
-              categoria:categorias(*)
-            `)
-            .eq('user_id', user.id);
-          
-          if (tarefasError) throw tarefasError;
-          
-          if (tarefasData && tarefasData.length > 0) {
-            // Buscar anexos para cada tarefa
-            const tarefasComAnexos = await Promise.all(tarefasData.map(async (tarefa) => {
-              const { data: anexosData } = await supabase
-                .from('tarefa_anexos')
-                .select(`
-                  anexos(*)
-                `)
-                .eq('tarefa_id', tarefa.id);
-              
-              const anexos = anexosData ? anexosData.map(item => item.anexos) : [];
-              
-              return {
-                id: tarefa.id,
-                titulo: tarefa.titulo,
-                descricao: tarefa.descricao || undefined,
-                dataCriacao: new Date(tarefa.data_criacao),
-                data: tarefa.data,
-                hora: tarefa.hora || undefined,
-                categoria: {
-                  id: tarefa.categoria.id,
-                  nome: tarefa.categoria.nome,
-                  cor: tarefa.categoria.cor
-                },
-                prioridade: tarefa.prioridade as 'baixa' | 'media' | 'alta',
-                concluida: tarefa.concluida,
-                anexos: anexos,
-                notificar: tarefa.notificar !== undefined ? 
-                  (tarefa.notificar !== null ? tarefa.notificar : true) : 
-                  true
-              };
-            }));
-            
-            setTarefas(tarefasComAnexos);
-          }
+          // Carregar tarefas usando o serviço
+          const tarefasCarregadas = await buscarTarefas(user.id);
+          setTarefas(tarefasCarregadas);
           
           // Carregar rotinas
           const { data: rotinasData, error: rotinasError } = await supabase
@@ -250,13 +209,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     
     loadUserData();
   }, [user]);
-
-  // Wrapper para verificarTarefasPendentes que usa o estado atual
-  const verificarTarefasPendentes = () => {
-    checkTarefasPendentes(tarefas, configNotificacoes);
+  
+  // Função para verificar tarefas pendentes
+  const verificarPendentes = () => {
+    verificarTarefasPendentes(tarefas, configNotificacoes);
   };
-
-  // Criar funções da aplicação
+  
+  // Iniciar o serviço de notificações quando o componente montar
+  useEffect(() => {
+    if (user && configNotificacoes.ativadas && tarefas.length > 0) {
+      // Solicitar permissão e iniciar serviço se permitido
+      const solicitarPermissao = async () => {
+        const permitido = await solicitarPermissaoNotificacao();
+        if (permitido) {
+          iniciarServicoNotificacoes(verificarPendentes);
+        }
+      };
+      
+      solicitarPermissao();
+    }
+    
+    // Limpar ao desmontar
+    return () => {
+      pararServicoNotificacoes();
+    };
+  }, [user, tarefas, configNotificacoes]);
+  
+  // Funções do App
   const appFunctions = createAppFunctions(
     tarefas,
     setTarefas,
@@ -268,115 +247,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPerfil,
     configNotificacoes,
     setConfigNotificacoes,
-    verificarTarefasPendentes,
+    verificarPendentes,
     user
   );
-  
-  // Gestão de notificações e solicitação de permissão - único useEffect para gerenciar tudo
-  useEffect(() => {
-    // Variável de escopo de módulo para garantir que só solicitamos uma vez
-    const solicitarPermissao = async () => {
-      if (configNotificacoes.ativadas && user && Notification.permission !== "granted") {
-        // Verificar permissão apenas uma vez e não mostrar toast
-        await solicitarPermissaoNotificacao();
-      }
-    };
-    
-    // Verificar permissão apenas se o usuário estiver logado e as notificações ativadas
-    if (configNotificacoes.ativadas && user) {
-      // Se já temos permissão, apenas iniciar o serviço
-      if (Notification.permission === "granted") {
-        console.log("Permissão já concedida, iniciando serviço de notificações");
-        iniciarServicoNotificacoes(verificarTarefasPendentes);
-      } else {
-        // Se ainda não temos permissão, solicitar uma única vez
-        console.log("Solicitando permissão para notificações");
-        solicitarPermissao().then(() => {
-          // E iniciar o serviço se obtiver permissão
-          if (Notification.permission === "granted") {
-            console.log("Permissão concedida, iniciando serviço de notificações");
-            iniciarServicoNotificacoes(verificarTarefasPendentes);
-          } else {
-            console.log("Permissão negada ou pendente, não iniciando serviço de notificações");
-          }
-        });
-      }
-    } else {
-      console.log("Notificações desativadas ou usuário não logado, parando serviço");
-      pararServicoNotificacoes();
-    }
-    
-    // Limpar o intervalo quando o componente for desmontado
-    return () => {
-      pararServicoNotificacoes();
-    };
-  }, [user, configNotificacoes.ativadas]);
 
-  // Adicionar método de logout aprimorado ao contexto
-  const logout = async (): Promise<boolean> => {
-    try {
-      // Limpar completamente o estado de autenticação
-      cleanupAuthState();
-      
-      // Tentar fazer logout global no Supabase
-      try {
-        await supabase.auth.signOut({ scope: 'global' });
-      } catch (err) {
-        console.error("Erro ao fazer logout no Supabase", err);
-        // Prosseguimos mesmo com erro, já que limpamos localmente
-      }
-
-      // Redefinir estados após logout
-      setUser(null);
-      setSession(null);
-      setTarefas([]);
-      setCategorias(CATEGORIAS_PADRAO);
-      setRotinas([]);
-      setPerfil({ 
-        nome: 'Usuário', 
-        nomeApp: 'Organizador de Tarefas',
-        subtitulo: 'Organize seu tempo e aumente sua produtividade',
-        corTitulo: '#3a86ff',
-        corSubtitulo: '#64748b'
-      });
-      setConfigNotificacoes({
-        ativadas: true,
-        comSom: false,
-        antecedencia: {
-          valor: 30,
-          unidade: 'minutos'
-        }
-      });
-
-      // Se chegamos até aqui, considere o logout bem-sucedido
-      return true;
-    } catch (error) {
-      console.error("Erro ao realizar logout:", error);
-      return false;
-    }
+  // Valor do contexto
+  const contextValue: AppContextType = {
+    user,
+    isLoading: loading,
+    tarefas,
+    categorias,
+    rotinas,
+    perfil,
+    configNotificacoes,
+    verificarTarefasPendentes: verificarPendentes,
+    ...appFunctions
   };
 
   return (
-    <AppContext.Provider
-      value={{
-        tarefas,
-        categorias,
-        rotinas,
-        perfil,
-        configNotificacoes,
-        user,
-        isLoading: loading,
-        ...appFunctions,
-        verificarTarefasPendentes,
-        logout, // Usando nossa versão melhorada da função logout
-      }}
-    >
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );
 }
 
-// Export the useApp hook directly from this file
 export const useApp = (): AppContextType => {
   const context = useContext(AppContext);
   if (context === undefined) {
