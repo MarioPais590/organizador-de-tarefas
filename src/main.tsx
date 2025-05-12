@@ -4,12 +4,22 @@ import App from './App';
 import './index.css';
 import { ErrorLogger } from './utils/errorLogger';
 import { register } from './serviceWorkerRegistration';
+import { verificarIconesPWA } from './utils/pwaHelpers';
 
 // Inicializar o sistema de logging para capturar erros
 ErrorLogger.initialize();
 
 // Registrar o service worker para PWA
 register();
+
+// Verificar se os ícones do PWA estão carregados corretamente
+verificarIconesPWA().then(iconesSaoValidos => {
+  if (!iconesSaoValidos) {
+    console.error('Alguns ícones do PWA não foram carregados corretamente. Isso pode afetar a instalação do aplicativo.');
+  } else {
+    console.log('Todos os ícones do PWA foram carregados com sucesso.');
+  }
+});
 
 // Garantir que o renderizador espere o DOM estar completamente carregado
 const renderApp = () => {

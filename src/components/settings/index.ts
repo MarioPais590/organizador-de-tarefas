@@ -8,3 +8,4 @@ export * from './notifications/NotificationToggle';
 export * from './notifications/SoundToggle';
 export * from './notifications/AdvanceTimeSelector';
 export * from './notifications/NotificationPermissionAlert';
+export * from './PWADiagnostics';

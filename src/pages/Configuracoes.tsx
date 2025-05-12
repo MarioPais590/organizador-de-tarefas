@@ -6,7 +6,8 @@ import {
   DataPrivacySettings, 
   AboutSection,
   GeneralSettings,
-  DatabaseSettings
+  DatabaseSettings,
+  PWADiagnostics
 } from "@/components/settings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DebugNotifications } from "@/components/settings/notifications/DebugNotifications";
@@ -34,11 +35,12 @@ export default function Configuracoes() {
 
       <div className="grid gap-6">
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid grid-cols-4 mb-4">
+          <TabsList className="grid grid-cols-5 mb-4">
             <TabsTrigger value="general">Geral</TabsTrigger>
             <TabsTrigger value="appearance">Aparência</TabsTrigger>
             <TabsTrigger value="notifications">Notificações</TabsTrigger>
             <TabsTrigger value="database">Dados</TabsTrigger>
+            <TabsTrigger value="pwa">Aplicativo</TabsTrigger>
           </TabsList>
           
           <TabsContent value="general" className="space-y-4">
@@ -65,6 +67,10 @@ export default function Configuracoes() {
           
           <TabsContent value="database" className="space-y-4">
             <DatabaseSettings />
+          </TabsContent>
+          
+          <TabsContent value="pwa" className="space-y-4">
+            <PWADiagnostics />
           </TabsContent>
         </Tabs>
         

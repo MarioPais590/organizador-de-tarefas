@@ -12,6 +12,12 @@
   "dir": "ltr",
   "prefer_related_applications": false,
   "iarc_rating_id": "",
+  "id": "/",
+  "scope": "/",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "launch_handler": {
+    "client_mode": ["navigate-existing", "auto"]
+  },
   "screenshots": [
     {
       "src": "/screenshots/desktop.png",
@@ -96,6 +102,18 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 } 

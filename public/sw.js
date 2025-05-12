@@ -1,5 +1,5 @@
 // Versão do cache
-const CACHE_NAME = 'organizador-tarefas-v1';
+const CACHE_NAME = 'organizador-tarefas-v3';
 
 // Arquivos a serem cacheados
 const urlsToCache = [
@@ -7,6 +7,7 @@ const urlsToCache = [
   '/index.html',
   '/manifest.json',
   '/favicon.ico',
+  // Ícones
   '/icons/icon-72x72.png',
   '/icons/icon-96x96.png',
   '/icons/icon-128x128.png',
@@ -15,39 +16,79 @@ const urlsToCache = [
   '/icons/icon-192x192.png',
   '/icons/icon-384x384.png',
   '/icons/icon-512x512.png',
+  '/icons/maskable-icon-512x512.png',
+  // Assets principais
   '/assets/index-CwkMYUte.css',
   '/assets/index-Bracgnp6.js'
 ];
 
 // Instalação do service worker
 self.addEventListener('install', (event) => {
+  console.log('[Service Worker] Instalando...');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Cache aberto com sucesso');
-        return cache.addAll(urlsToCache);
-      })
-      .catch(error => {
-        console.error('Falha ao adicionar itens ao cache:', error);
+        console.log('[Service Worker] Cache aberto com sucesso');
+        return cache.addAll(urlsToCache)
+          .then(() => {
+            console.log('[Service Worker] Todos os recursos foram cacheados');
+            // Verificar ícones
+            return verificarIcones();
+          })
+          .catch(error => {
+            console.error('[Service Worker] Falha ao adicionar itens ao cache:', error);
+          });
       })
   );
   // Força o service worker a se tornar ativo imediatamente
   self.skipWaiting();
 });
 
+// Função para verificar os ícones
+async function verificarIcones() {
+  const iconSizes = [72, 96, 128, 144, 152, 192, 384, 512];
+  const iconUrls = iconSizes.map(size => `/icons/icon-${size}x${size}.png`);
+  iconUrls.push('/icons/maskable-icon-512x512.png');
+  
+  try {
+    // Limpar o cache de ícones
+    const cache = await caches.open(CACHE_NAME);
+    
+    for (const url of iconUrls) {
+      try {
+        // Tentar buscar o ícone da rede e atualizar o cache
+        const response = await fetch(url, { cache: 'no-cache' });
+        if (response.ok) {
+          await cache.put(url, response.clone());
+          console.log(`[Service Worker] Ícone ${url} atualizado no cache`);
+        } else {
+          console.error(`[Service Worker] Falha ao buscar ícone ${url}: ${response.status}`);
+        }
+      } catch (error) {
+        console.error(`[Service Worker] Erro ao processar ícone ${url}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error('[Service Worker] Erro ao verificar ícones:', error);
+  }
+}
+
 // Ativação do service worker
 self.addEventListener('activate', (event) => {
+  console.log('[Service Worker] Ativando...');
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheWhitelist.indexOf(cacheName) === -1) {
-            console.log('Eliminando cache antigo:', cacheName);
+            console.log('[Service Worker] Eliminando cache antigo:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
+    }).then(() => {
+      console.log('[Service Worker] Agora está ativo e controlando a página');
     })
   );
   // Garante que o service worker controle imediatamente todas as páginas
@@ -189,7 +230,7 @@ self.addEventListener('activate', event => {
   }
 });
 
-// Estratégia de cache: stale-while-revalidate
+// Estratégia de cache: Network first, then cache
 self.addEventListener('fetch', (event) => {
   // Ignora requisições não GET
   if (event.request.method !== 'GET') return;
@@ -197,12 +238,14 @@ self.addEventListener('fetch', (event) => {
   // Ignora requisições de outros domínios
   if (!event.request.url.startsWith(self.location.origin)) return;
   
-  event.respondWith(
-    caches.match(event.request).then(cachedResponse => {
-      // Usa o cache primeiro enquanto busca uma atualização da rede
-      const fetchPromise = fetch(event.request)
+  // Estratégia especial para ícones e recursos do PWA
+  if (event.request.url.includes('/icons/') || 
+      event.request.url.includes('/manifest.json') || 
+      event.request.url.includes('/favicon.ico')) {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-cache' })
         .then(networkResponse => {
-          // Se a resposta for válida, cloná-la e armazená-la no cache
+          // Armazenar em cache
           if (networkResponse && networkResponse.status === 200) {
             const responseToCache = networkResponse.clone();
             caches.open(CACHE_NAME).then(cache => {
@@ -212,11 +255,35 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          console.log('Falha na rede, usando cache para:', event.request.url);
-          // Se a rede falhar, retorna o cachedResponse como fallback
-        });
-      
-      return cachedResponse || fetchPromise;
-    })
+          // Se falhar, tentar usar o cache
+          return caches.match(event.request).then(cachedResponse => {
+            return cachedResponse || new Response('Não foi possível carregar o recurso', {
+              status: 404,
+              statusText: 'Não encontrado'
+            });
+          });
+        })
+    );
+    return;
+  }
+  
+  // Para outros recursos, usar Network First
+  event.respondWith(
+    fetch(event.request)
+      .then(networkResponse => {
+        // Se a resposta for válida, cloná-la e armazená-la no cache
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => {
+        console.log('Falha na rede, usando cache para:', event.request.url);
+        // Se a rede falhar, tenta usar o cache
+        return caches.match(event.request);
+      })
   );
 }); 
