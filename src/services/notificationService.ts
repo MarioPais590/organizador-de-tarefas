@@ -97,15 +97,15 @@ export const iniciarServicoNotificacoes = (
   // Parar qualquer serviço anterior se existir
   pararServicoNotificacoes();
   
-  // Iniciar verificação periódica a cada 10 segundos
+  // Iniciar verificação periódica com maior frequência para garantir precisão
   const intervalId = setInterval(() => {
     verificarTarefasPendentes();
-  }, 10000); // Reduzido para 10 segundos para maior precisão
+  }, 5000); // Reduzido para 5 segundos para maior precisão na entrega das notificações
   
   // Armazenar o ID do intervalo para poder limpar depois
   window.notificacaoIntervalId = intervalId;
   
-  console.log("Serviço de notificações iniciado com sucesso!");
+  console.log("Serviço de notificações iniciado com sucesso em modo de alta precisão!");
 };
 
 /**
@@ -126,25 +126,50 @@ export const pararServicoNotificacoes = (): void => {
  * @returns Objeto Date
  */
 const converterParaDate = (data: string, hora?: string): Date => {
-  const dataObj = new Date(data);
-  
-  if (hora) {
-    const [horaStr, minutoStr] = hora.split(':');
-    const horaNum = parseInt(horaStr, 10);
-    const minutoNum = parseInt(minutoStr, 10);
+  try {
+    // Criar a data sem manipulação de timezone
+    const [ano, mes, dia] = data.split('-').map(Number);
     
-    if (!isNaN(horaNum) && !isNaN(minutoNum)) {
-      dataObj.setHours(horaNum, minutoNum, 0, 0);
+    // Verificar se os componentes da data são válidos
+    if (isNaN(ano) || isNaN(mes) || isNaN(dia) || 
+        mes < 1 || mes > 12 || dia < 1 || dia > 31) {
+      console.warn(`Data inválida: ${data}, usando data atual`);
+      return new Date(); // Retornar data atual em caso de erro
+    }
+    
+    // Criar objeto data com componentes específicos (evita ajuste de timezone)
+    const dataObj = new Date(ano, mes - 1, dia);
+    
+    // Se houver hora, adicionar
+    if (hora && hora.includes(':')) {
+      const [horaStr, minutoStr] = hora.split(':');
+      const horaNum = parseInt(horaStr, 10);
+      const minutoNum = parseInt(minutoStr, 10);
+      
+      if (!isNaN(horaNum) && !isNaN(minutoNum) && 
+          horaNum >= 0 && horaNum <= 23 && 
+          minutoNum >= 0 && minutoNum <= 59) {
+        dataObj.setHours(horaNum, minutoNum, 0, 0);
+      } else {
+        console.warn(`Hora inválida: ${hora}, usando meia-noite`);
+        dataObj.setHours(0, 0, 0, 0);
+      }
     } else {
-      // Se a hora for inválida, usar meia-noite
+      // Se não houver hora, usar meia-noite
       dataObj.setHours(0, 0, 0, 0);
     }
-  } else {
-    // Se não houver hora, usar meia-noite
-    dataObj.setHours(0, 0, 0, 0);
+    
+    // Verificação final
+    if (isNaN(dataObj.getTime())) {
+      console.warn(`Objeto de data resultante inválido para entrada: ${data} ${hora || ''}`);
+      return new Date(); // Retornar data atual em caso de erro
+    }
+    
+    return dataObj;
+  } catch (error) {
+    console.error(`Erro ao converter data/hora: ${data} ${hora || ''}`, error);
+    return new Date(); // Retornar data atual em caso de erro
   }
-  
-  return dataObj;
 };
 
 /**
@@ -258,15 +283,25 @@ export const verificarTarefasPendentes = (
       const tempoDesdeUltimaNotificacao = agora.getTime() - ultimaNotificacao;
       
       // Verificar se tempo está dentro da margem de notificação
-      // Aumentamos a margem de verificação para mais precisão
-      const margemDeVerificacao = 30000; // 30 segundos em ms
+      // Aumentar a margem de verificação para maior probabilidade de detecção
+      const margemDeVerificacao = 60000; // 60 segundos (1 minuto) em ms
       
-      // Se o tempo restante estiver próximo do tempo de antecedência configurado
-      const dentroDoLimiteDeAntecedencia = Math.abs(tempoParaTarefa - milissegundosAntecedencia) <= margemDeVerificacao;
+      // Calcular o momento exato em que a notificação deve ser enviada
+      // (momento da tarefa menos o tempo de antecedência)
+      const momentoNotificacao = dataHoraTarefa.getTime() - milissegundosAntecedencia;
+      
+      // Verificar se estamos próximos do momento de notificação
+      const tempoAteNotificacao = momentoNotificacao - agora.getTime();
+      
+      // Condições para enviar notificação:
+      // 1. Estamos próximos do momento de notificação (dentro da margem) OU
+      // 2. Já passamos do momento de notificação, mas não faz muito tempo (dentro da margem negativa)
+      const dentroDoLimiteDeAntecedencia = 
+        Math.abs(tempoAteNotificacao) <= margemDeVerificacao;
       
       // Só notificar se: 
       // 1. O tempo para a tarefa for positivo (tarefa ainda não ocorreu)
-      // 2. O tempo para a tarefa for aproximadamente igual à antecedência configurada
+      // 2. Estamos dentro do limite de antecedência (próximo do momento de notificação)
       // 3. A última notificação foi há mais de 5 minutos ou nunca foi feita
       const notificacaoRecente = tempoDesdeUltimaNotificacao <= 300000 && ultimaNotificacao !== 0;
       
@@ -274,14 +309,20 @@ export const verificarTarefasPendentes = (
         console.log(
           `Tarefa: ${tarefa.titulo} (${tarefa.data} ${tarefa.hora || "00:00"})\n` +
           `  • Tempo até a tarefa: ${formatarTempo(tempoParaTarefa)}\n` +
+          `  • Tempo até momento de notificação: ${formatarTempo(tempoAteNotificacao)}\n` +
           `  • Notificar com antecedência: ${formatarTempo(milissegundosAntecedencia)}\n` +
           `  • Dentro do limite: ${dentroDoLimiteDeAntecedencia}\n` +
           `  • Notificação recente: ${notificacaoRecente}\n` +
-          `  • Hora da tarefa: ${dataHoraTarefa.toLocaleString()}`
+          `  • Hora atual: ${agora.toLocaleString()}\n` +
+          `  • Hora da tarefa: ${dataHoraTarefa.toLocaleString()}\n` +
+          `  • Momento da notificação: ${new Date(momentoNotificacao).toLocaleString()}`
         );
       }
       
-      // Se entrar nessas condições, enviar notificação
+      // Lógica de envio de notificação ajustada:
+      // 1. A tarefa ainda não ocorreu
+      // 2. Estamos no momento certo para notificar
+      // 3. Não notificamos recentemente esta tarefa
       if (tempoParaTarefa > 0 && 
           dentroDoLimiteDeAntecedencia && 
           !notificacaoRecente) {
