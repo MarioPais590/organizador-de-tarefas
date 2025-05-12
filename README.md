@@ -1,3 +1,76 @@
+# Organizador de Tarefas
+
+Um aplicativo para organização de tarefas, rotinas e compromissos, desenvolvido com React, TypeScript e Supabase.
+
+## Documentação
+
+A documentação completa do projeto pode ser encontrada na pasta `docs`:
+
+- [Documentação de Referência](docs/documentacao-referencia.md)
+- [Migrações de Banco de Dados](docs/migrations.md)
+- [Instruções para Notificações](docs/notificacoes_instrucoes.md)
+
+## Sincronização entre ambientes
+
+Este projeto pode ser executado em diferentes ambientes:
+
+1. **Local (Desenvolvimento)**: Seu ambiente de trabalho local
+2. **Lovable**: Ambiente de teste/homologação
+3. **Produção**: Ambiente final para usuários
+
+### Como manter os ambientes sincronizados
+
+Para garantir que todos os ambientes funcionem corretamente, siga estas instruções:
+
+1. **Banco de dados (Supabase)**:
+   - Execute os scripts SQL da pasta `docs/migrations.md` em cada ambiente
+   - Marque cada migração como concluída conforme aplicar
+
+2. **Código**:
+   - Use o Git para controle de versão
+   - Faça commit das alterações e envie para o repositório remoto
+   - Atualize os outros ambientes a partir do repositório
+
+```bash
+# Para enviar alterações para o repositório:
+git add .
+git commit -m "Descrição das alterações"
+git push origin main
+
+# Para atualizar outro ambiente a partir do repositório:
+git pull origin main
+```
+
+## Compatibilidade entre ambientes
+
+O código foi adaptado para ser compatível com diferentes esquemas de banco de dados, permitindo que funcione mesmo quando algumas colunas não existem em todos os ambientes.
+
+## Requisitos
+
+- Node.js 18+
+- npm ou Yarn
+- Conta no Supabase
+
+## Executando localmente
+
+```bash
+# Instalar dependências
+npm install
+
+# Executar em desenvolvimento
+npm run dev
+```
+
+O aplicativo estará disponível em `http://localhost:5173` (ou a porta indicada no terminal).
+
+## Implementação de melhorias
+
+Ao adicionar novos recursos:
+
+1. Documente as alterações no banco de dados em `docs/migrations.md`
+2. Escreva código que seja compatível com todos os ambientes
+3. Teste em ambiente local antes de enviar para produção
+
 # Welcome to your Lovable project
 
 ## Project info
