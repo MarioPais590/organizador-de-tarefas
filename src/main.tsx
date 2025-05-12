@@ -3,9 +3,13 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 import { ErrorLogger } from './utils/errorLogger';
+import { register } from './serviceWorkerRegistration';
 
 // Inicializar o sistema de logging para capturar erros
 ErrorLogger.initialize();
+
+// Registrar o service worker para PWA
+register();
 
 // Garantir que o renderizador espere o DOM estar completamente carregado
 const renderApp = () => {
