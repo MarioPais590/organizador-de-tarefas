@@ -1,8 +1,9 @@
-
 export * from './ApearanceSettings';
 export * from './NotificationSettings';
 export * from './DataPrivacySettings';
 export * from './AboutSection';
+export * from './GeneralSettings';
+export * from './DatabaseSettings';
 export * from './notifications/NotificationToggle';
 export * from './notifications/SoundToggle';
 export * from './notifications/AdvanceTimeSelector';

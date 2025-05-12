@@ -10,11 +10,20 @@ import { verificarTarefasPendentes, iniciarServicoNotificacoes, pararServicoNoti
 import { tryAutoLogin } from '@/services/authService';
 import { buscarTarefas } from '@/services/taskService';
 
-// Criação do contexto
-export const AppContext = createContext<AppContextType | undefined>(undefined);
+// Criação do contexto com valor default undefined
+const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// Provider
-export function AppProvider({ children }: { children: React.ReactNode }) {
+// Hook para usar o contexto
+function useApp(): AppContextType {
+  const context = useContext(AppContext);
+  if (context === undefined) {
+    throw new Error('useApp deve ser usado dentro de um AppProvider');
+  }
+  return context;
+}
+
+// Provider Component
+function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -163,7 +172,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             .from('config_notificacoes')
             .select('*')
             .eq('user_id', user.id)
-            .single();
+            .maybeSingle();
+          
+          console.log("Carregando configurações de notificação:", notificacoesData, notificacoesError);
           
           if (notificacoesError && notificacoesError.code !== 'PGRST116') {
             // PGRST116 é o código para "não encontrado", podemos ignorar
@@ -171,14 +182,66 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           }
           
           if (notificacoesData) {
-            setConfigNotificacoes({
-              ativadas: notificacoesData.ativadas,
-              comSom: notificacoesData.com_som,
+            console.log("Configurações de notificação carregadas:", notificacoesData);
+            
+            // Garantir valores válidos com fallbacks para os padrões
+            const configCarregada = {
+              ativadas: notificacoesData.ativadas !== null ? notificacoesData.ativadas : true,
+              comSom: notificacoesData.com_som !== null ? notificacoesData.com_som : false,
               antecedencia: {
-                valor: notificacoesData.antecedencia_valor,
-                unidade: notificacoesData.antecedencia_unidade as 'minutos' | 'horas'
+                valor: notificacoesData.antecedencia_valor !== null ? 
+                  parseInt(String(notificacoesData.antecedencia_valor), 10) : 30,
+                unidade: notificacoesData.antecedencia_unidade !== null && 
+                  (notificacoesData.antecedencia_unidade === 'minutos' || notificacoesData.antecedencia_unidade === 'horas') ? 
+                  notificacoesData.antecedencia_unidade as 'minutos' | 'horas' : 'minutos'
               }
-            });
+            };
+            
+            // Validar valor de antecedência
+            if (isNaN(configCarregada.antecedencia.valor) || configCarregada.antecedencia.valor < 1) {
+              console.warn("Valor de antecedência inválido, corrigindo para 30:", configCarregada.antecedencia.valor);
+              configCarregada.antecedencia.valor = 30;
+            }
+            
+            console.log("Definindo configurações de notificação:", configCarregada);
+            setConfigNotificacoes(configCarregada);
+          } else {
+            // Se não existir configurações no banco, criar um registro padrão
+            const configPadrao = {
+              ativadas: true,
+              comSom: false,
+              antecedencia: {
+                valor: 30,
+                unidade: 'minutos' as const
+              }
+            };
+            
+            console.log("Criando configurações padrão de notificação:", configPadrao);
+            
+            try {
+              // Tentar inserir configuração padrão
+              const { data, error } = await supabase
+                .from('config_notificacoes')
+                .insert({
+                  user_id: user.id,
+                  ativadas: configPadrao.ativadas,
+                  com_som: configPadrao.comSom,
+                  antecedencia_valor: configPadrao.antecedencia.valor,
+                  antecedencia_unidade: configPadrao.antecedencia.unidade
+                })
+                .select();
+                
+              if (error) {
+                console.error("Erro ao criar configurações padrão:", error);
+              } else {
+                console.log("Configurações padrão de notificação criadas:", data);
+              }
+            } catch (erro) {
+              console.error("Erro ao criar configurações padrão:", erro);
+            }
+            
+            // Independente do resultado da criação, definir o estado com os valores padrão
+            setConfigNotificacoes(configPadrao);
           }
         } catch (error) {
           console.error("Erro ao carregar dados do usuário:", error);
@@ -271,10 +334,5 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export const useApp = (): AppContextType => {
-  const context = useContext(AppContext);
-  if (context === undefined) {
-    throw new Error('useApp deve ser usado dentro de um AppProvider');
-  }
-  return context;
-};
+// Exportar os componentes e hooks
+export { AppProvider, useApp, AppContext };

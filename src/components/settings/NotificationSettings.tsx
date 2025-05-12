@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BellRing } from "lucide-react";
 import { ConfiguracoesNotificacao } from "@/types";
@@ -7,6 +7,7 @@ import { SoundToggle } from "./notifications/SoundToggle";
 import { AdvanceTimeSelector } from "./notifications/AdvanceTimeSelector";
 import { NotificationPermissionAlert } from "./notifications/NotificationPermissionAlert";
 import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface NotificationSettingsProps {
   configNotificacoes: ConfiguracoesNotificacao;
@@ -14,6 +15,11 @@ interface NotificationSettingsProps {
 }
 
 export function NotificationSettings({ configNotificacoes, atualizarConfigNotificacoes }: NotificationSettingsProps) {
+  // Referência para rastrear se os estados já foram inicializados
+  const initialized = useRef(false);
+  const [loading, setLoading] = useState(true);
+  
+  // Estados locais para controlar valores de UI
   const [antecedenciaValor, setAntecedenciaValor] = useState(configNotificacoes.antecedencia.valor);
   const [antecedenciaUnidade, setAntecedenciaUnidade] = useState(configNotificacoes.antecedencia.unidade);
   const [notificacoesAtivadas, setNotificacoesAtivadas] = useState(configNotificacoes.ativadas);
@@ -21,6 +27,52 @@ export function NotificationSettings({ configNotificacoes, atualizarConfigNotifi
   const [notificacaoPermissao, setNotificacaoPermissao] = useState<NotificationPermission | "default">("default");
   const [configChanged, setConfigChanged] = useState(false);
   const [permissaoJaNotificada, setPermissaoJaNotificada] = useState(false);
+
+  // Sincronizar estados com as propriedades quando elas mudam
+  useEffect(() => {
+    console.log("configNotificacoes atualizado:", configNotificacoes);
+    
+    // Ocultar componente por um breve momento durante a inicialização para evitar flashes
+    if (!initialized.current) {
+      setLoading(true);
+      // Timeout para dar tempo ao DOM de atualizar
+      setTimeout(() => {
+        // Atualizar todos os valores de uma vez
+        setAntecedenciaValor(configNotificacoes.antecedencia.valor);
+        setAntecedenciaUnidade(configNotificacoes.antecedencia.unidade);
+        setNotificacoesAtivadas(configNotificacoes.ativadas);
+        setSomAtivado(configNotificacoes.comSom);
+        
+        initialized.current = true;
+        console.log("Estados inicializados com valores:", configNotificacoes);
+        
+        // Revelar componente apenas após os valores estarem definidos
+        setLoading(false);
+      }, 50);
+      return;
+    }
+    
+    // Sempre sincronizar o valor de antecedência
+    if (configNotificacoes.antecedencia.valor !== antecedenciaValor) {
+      console.log(`Sincronizando valor de antecedência: ${antecedenciaValor} -> ${configNotificacoes.antecedencia.valor}`);
+      setAntecedenciaValor(configNotificacoes.antecedencia.valor);
+    }
+    
+    // Sempre sincronizar a unidade de antecedência
+    if (configNotificacoes.antecedencia.unidade !== antecedenciaUnidade) {
+      console.log(`Sincronizando unidade de antecedência: ${antecedenciaUnidade} -> ${configNotificacoes.antecedencia.unidade}`);
+      setAntecedenciaUnidade(configNotificacoes.antecedencia.unidade);
+    }
+    
+    // Sincronizar demais estados
+    if (configNotificacoes.ativadas !== notificacoesAtivadas) {
+      setNotificacoesAtivadas(configNotificacoes.ativadas);
+    }
+    
+    if (configNotificacoes.comSom !== somAtivado) {
+      setSomAtivado(configNotificacoes.comSom);
+    }
+  }, [configNotificacoes]);
 
   // Verificar o status da permissão de notificação
   useEffect(() => {
@@ -32,20 +84,24 @@ export function NotificationSettings({ configNotificacoes, atualizarConfigNotifi
     
     // Verificar imediatamente
     checkPermission();
-    
-    // Verificar apenas quando o componente é montado, não continuamente
-    return () => {};
   }, []);
 
   // Efeito para atualizar a flag quando as configurações mudarem
   useEffect(() => {
-    if (
+    if (initialized.current && (
       notificacoesAtivadas !== configNotificacoes.ativadas ||
       somAtivado !== configNotificacoes.comSom ||
       antecedenciaValor !== configNotificacoes.antecedencia.valor ||
       antecedenciaUnidade !== configNotificacoes.antecedencia.unidade
-    ) {
+    )) {
       setConfigChanged(true);
+      console.log("Configurações alteradas. Estado atual:", {
+        notificacoesAtivadas,
+        somAtivado,
+        antecedenciaValor,
+        antecedenciaUnidade
+      });
+      console.log("Props:", configNotificacoes);
     } else {
       setConfigChanged(false);
     }
@@ -97,6 +153,20 @@ export function NotificationSettings({ configNotificacoes, atualizarConfigNotifi
     }
   };
 
+  // Função para atualizar o valor de antecedência
+  const handleAntecedenciaChange = (valor: number) => {
+    console.log(`Valor de antecedência alterado: ${antecedenciaValor} -> ${valor}`);
+    setAntecedenciaValor(valor);
+    setConfigChanged(true);
+  };
+
+  // Função para atualizar a unidade de antecedência
+  const handleUnidadeChange = (unidade: "minutos" | "horas") => {
+    console.log(`Unidade de antecedência alterada: ${antecedenciaUnidade} -> ${unidade}`);
+    setAntecedenciaUnidade(unidade);
+    setConfigChanged(true);
+  };
+
   // Função para salvar as alterações apenas quando explicitamente chamada
   const salvarAlteracoes = () => {
     try {
@@ -125,43 +195,50 @@ export function NotificationSettings({ configNotificacoes, atualizarConfigNotifi
       }
       
       // Salvar configurações
-      atualizarConfigNotificacoes({
+      const novasConfiguracoes = {
         ativadas: notificacoesAtivadas,
         comSom: somAtivado,
         antecedencia: {
           valor: antecedenciaValor,
           unidade: antecedenciaUnidade,
         }
-      }, true);
+      };
       
+      console.log("Salvando configurações:", novasConfiguracoes);
+      console.log(`Valor de antecedência sendo salvo: ${antecedenciaValor}`);
+      console.log(`Unidade de antecedência sendo salva: ${antecedenciaUnidade}`);
+      
+      // Enviar atualizações para o contexto
+      const resultado = atualizarConfigNotificacoes(novasConfiguracoes, true);
+      
+      // Resetar flag de alterações
       setConfigChanged(false);
-      toast.success("Configurações de notificação atualizadas com sucesso!");
     } catch (error) {
       console.error("Erro ao salvar configurações:", error);
       toast.error("Erro ao atualizar configurações de notificação.");
     }
   };
 
-  // Salvar automaticamente quando o componente for desmontado se houver alterações
-  useEffect(() => {
-    return () => {
-      if (configChanged) {
-        try {
-          // Não solicitar permissão aqui, apenas salvar o estado atual
-          atualizarConfigNotificacoes({
-            ativadas: notificacoesAtivadas,
-            comSom: somAtivado,
-            antecedencia: {
-              valor: antecedenciaValor,
-              unidade: antecedenciaUnidade,
-            }
-          }, false);
-        } catch (error) {
-          console.error("Erro ao salvar configurações:", error);
-        }
-      }
-    };
-  }, [configChanged, atualizarConfigNotificacoes, notificacoesAtivadas, somAtivado, antecedenciaValor, antecedenciaUnidade]);
+  // Se estiver carregando, mostrar esqueleto
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BellRing className="h-5 w-5" /> Notificações
+          </CardTitle>
+          <CardDescription>
+            Configure as preferências de notificação
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-8 w-full" />
+          <Skeleton className="h-20 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -178,6 +255,7 @@ export function NotificationSettings({ configNotificacoes, atualizarConfigNotifi
           checked={notificacoesAtivadas} 
           onCheckedChange={(checked) => {
             setNotificacoesAtivadas(checked);
+            setConfigChanged(true);
             if (checked && notificacaoPermissao !== "granted") {
               requestNotificationPermission();
             }
@@ -186,15 +264,18 @@ export function NotificationSettings({ configNotificacoes, atualizarConfigNotifi
         
         <SoundToggle 
           checked={somAtivado} 
-          onCheckedChange={setSomAtivado}
+          onCheckedChange={(checked) => {
+            setSomAtivado(checked);
+            setConfigChanged(true);
+          }}
           disabled={!notificacoesAtivadas}
         />
         
         <AdvanceTimeSelector
           valor={antecedenciaValor}
           unidade={antecedenciaUnidade}
-          onValorChange={setAntecedenciaValor}
-          onUnidadeChange={setAntecedenciaUnidade}
+          onValorChange={handleAntecedenciaChange}
+          onUnidadeChange={handleUnidadeChange}
           disabled={!notificacoesAtivadas}
         />
         
@@ -212,7 +293,52 @@ export function NotificationSettings({ configNotificacoes, atualizarConfigNotifi
             Salvar Alterações
           </button>
         )}
+        
+        {/* Botão de depuração - apenas em desenvolvimento */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <details className="text-xs">
+              <summary className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
+                Informações de Depuração
+              </summary>
+              <div className="mt-2 p-2 bg-muted rounded-md space-y-2">
+                <div>
+                  <h4 className="font-medium">Estado do Componente:</h4>
+                  <pre className="text-xs mt-1 p-1 bg-background rounded overflow-auto max-h-20">
+                    {JSON.stringify({
+                      antecedenciaValor,
+                      antecedenciaUnidade,
+                      notificacoesAtivadas,
+                      somAtivado,
+                      configChanged,
+                      initialized: initialized.current
+                    }, null, 2)}
+                  </pre>
+                </div>
+                <div>
+                  <h4 className="font-medium">Props do Contexto:</h4>
+                  <pre className="text-xs mt-1 p-1 bg-background rounded overflow-auto max-h-20">
+                    {JSON.stringify(configNotificacoes, null, 2)}
+                  </pre>
+                </div>
+                <button 
+                  onClick={salvarAlteracoes}
+                  className="w-full mt-2 py-1 px-2 bg-blue-500 text-white text-xs rounded-md hover:bg-blue-600 transition-colors"
+                >
+                  Forçar Salvamento
+                </button>
+              </div>
+            </details>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
+}
+
+// Adicionar tipagem para a propriedade global no window
+declare global {
+  interface Window {
+    antecedenciaTimer?: ReturnType<typeof setTimeout>;
+  }
 }

@@ -5,14 +5,16 @@ import { formatarTempo } from '@/utils/dateUtils';
 // Extend Window interface para incluir nossas propriedades customizadas
 declare global {
   interface Window {
-    notificacaoIntervalId?: number;
+    notificacaoIntervalId?: ReturnType<typeof setInterval>;
     notificacaoUltimasNotificadas: Record<string, number>;
+    debugNotificacoes?: boolean;
   }
 }
 
 // Inicializar o registro de notificações já enviadas
 if (typeof window !== 'undefined') {
   window.notificacaoUltimasNotificadas = window.notificacaoUltimasNotificadas || {};
+  window.debugNotificacoes = true; // Habilitar modo de depuração
 }
 
 // Variável global para rastrear se a permissão já foi solicitada nesta sessão
@@ -30,13 +32,15 @@ export const solicitarPermissaoNotificacao = async (): Promise<boolean> => {
     return false;
   }
   
+  const permissionStatus = Notification.permission as string;
+  
   // Se já temos permissão, retornar
-  if (Notification.permission === "granted") {
+  if (permissionStatus === "granted") {
     return true;
   }
   
   // Se já negada, avisar mas não solicitar novamente
-  if (Notification.permission === "denied") {
+  if (permissionStatus === "denied") {
     console.warn("Permissão para notificações foi negada");
     toast.warning(
       "Permissões de notificação estão bloqueadas. Você precisa permitir notificações nas configurações do navegador."
@@ -46,7 +50,8 @@ export const solicitarPermissaoNotificacao = async (): Promise<boolean> => {
   
   // Evitar solicitar muitas vezes na mesma sessão
   if (permissaoJaSolicitada) {
-    return Notification.permission === "granted";
+    // Usar Notification.permission diretamente
+    return (Notification.permission as string) === "granted";
   }
   
   // Solicitar permissão
@@ -92,10 +97,10 @@ export const iniciarServicoNotificacoes = (
   // Parar qualquer serviço anterior se existir
   pararServicoNotificacoes();
   
-  // Iniciar verificação periódica
-  const intervalId = window.setInterval(() => {
+  // Iniciar verificação periódica a cada 10 segundos
+  const intervalId = setInterval(() => {
     verificarTarefasPendentes();
-  }, 30000); // Verifica a cada 30 segundos
+  }, 10000); // Reduzido para 10 segundos para maior precisão
   
   // Armazenar o ID do intervalo para poder limpar depois
   window.notificacaoIntervalId = intervalId;
@@ -108,10 +113,38 @@ export const iniciarServicoNotificacoes = (
  */
 export const pararServicoNotificacoes = (): void => {
   if (window.notificacaoIntervalId) {
-    window.clearInterval(window.notificacaoIntervalId);
+    clearInterval(window.notificacaoIntervalId);
     window.notificacaoIntervalId = undefined;
     console.log("Serviço de notificações parado com sucesso!");
   }
+};
+
+/**
+ * Converte uma string de data e hora em um objeto Date
+ * @param data String de data no formato YYYY-MM-DD
+ * @param hora String de hora no formato HH:MM (opcional)
+ * @returns Objeto Date
+ */
+const converterParaDate = (data: string, hora?: string): Date => {
+  const dataObj = new Date(data);
+  
+  if (hora) {
+    const [horaStr, minutoStr] = hora.split(':');
+    const horaNum = parseInt(horaStr, 10);
+    const minutoNum = parseInt(minutoStr, 10);
+    
+    if (!isNaN(horaNum) && !isNaN(minutoNum)) {
+      dataObj.setHours(horaNum, minutoNum, 0, 0);
+    } else {
+      // Se a hora for inválida, usar meia-noite
+      dataObj.setHours(0, 0, 0, 0);
+    }
+  } else {
+    // Se não houver hora, usar meia-noite
+    dataObj.setHours(0, 0, 0, 0);
+  }
+  
+  return dataObj;
 };
 
 /**
@@ -123,6 +156,17 @@ export const verificarTarefasPendentes = (
   tarefas: Tarefa[], 
   configNotificacoes: ConfiguracoesNotificacao
 ): void => {
+  // Verificações de segurança para evitar erros
+  if (!tarefas || !Array.isArray(tarefas)) {
+    console.error("Tarefas inválidas fornecidas para verificarTarefasPendentes", tarefas);
+    return;
+  }
+
+  if (!configNotificacoes) {
+    console.error("Configurações de notificação inválidas", configNotificacoes);
+    return;
+  }
+  
   // Se as notificações não estiverem ativadas, não fazer nada
   if (!configNotificacoes.ativadas) return;
   
@@ -133,19 +177,63 @@ export const verificarTarefasPendentes = (
   if (Notification.permission !== "granted") return;
   
   const agora = new Date();
-  console.log(`Verificando tarefas pendentes: ${agora.toLocaleTimeString()}`);
+  const debug = window.debugNotificacoes;
+  
+  if (debug) {
+    console.log(`Verificando tarefas pendentes: ${agora.toLocaleTimeString()}`);
+    console.log(`Configurações atuais: antecedência=${configNotificacoes.antecedencia?.valor || 'N/A'} ${configNotificacoes.antecedencia?.unidade || 'N/A'}, som=${configNotificacoes.comSom}`);
+  }
+  
+  // Verificar se configurações de antecedência são válidas
+  if (!configNotificacoes.antecedencia) {
+    console.error("Configuração de antecedência está faltando");
+    return;
+  }
+  
+  // Garantir que o valor de antecedência é válido
+  let valorAntecedencia = configNotificacoes.antecedencia.valor;
+  if (isNaN(valorAntecedencia) || valorAntecedencia < 1) {
+    // Corrigir valor inválido
+    console.warn(`Valor de antecedência inválido: ${valorAntecedencia}, usando 30 como padrão`);
+    valorAntecedencia = 30;
+  }
+  
+  // Verificar se a unidade é válida
+  const unidadeValida = configNotificacoes.antecedencia.unidade === 'minutos' || 
+                        configNotificacoes.antecedencia.unidade === 'horas';
+                        
+  if (!unidadeValida) {
+    console.warn(`Unidade de antecedência inválida: ${configNotificacoes.antecedencia.unidade}, usando 'minutos' como padrão`);
+    configNotificacoes.antecedencia.unidade = 'minutos';
+  }
+  
+  // Calcular o tempo de antecedência em milissegundos
+  const milissegundosAntecedencia = valorAntecedencia * 
+    (configNotificacoes.antecedencia.unidade === 'minutos' ? 60000 : 3600000);
+  
+  if (debug) {
+    console.log(`Milissegundos de antecedência: ${milissegundosAntecedencia}ms (${formatarTempo(milissegundosAntecedencia)})`);
+  }
+  
+  // Garantir que o objeto de últimas notificações existe
+  if (!window.notificacaoUltimasNotificadas) {
+    window.notificacaoUltimasNotificadas = {};
+  }
   
   // Para cada tarefa não concluída
   tarefas.forEach(tarefa => {
-    if (tarefa.concluida) return;
+    if (!tarefa || tarefa.concluida) return;
     
-    if (!tarefa.data) return;
+    if (!tarefa.data) {
+      if (debug) console.log(`Tarefa ${tarefa.id}: ${tarefa.titulo} não tem data definida`);
+      return;
+    }
     
     // Verificar se a tarefa deve notificar
-    // Feito de forma segura para compatibilidade com diferentes ambientes
     try {
       // Se a tarefa tem notificar=false explicitamente, pular
       if (tarefa.notificar === false) {
+        if (debug) console.log(`Tarefa ${tarefa.titulo} tem notificações desativadas`);
         return;
       }
     } catch (err) {
@@ -154,18 +242,13 @@ export const verificarTarefasPendentes = (
     
     try {
       // Converter string para objeto Date
-      let dataHoraTarefa = new Date(tarefa.data);
-      if (tarefa.hora) {
-        const [hora, minuto] = tarefa.hora.split(':');
-        dataHoraTarefa.setHours(parseInt(hora, 10), parseInt(minuto, 10));
-      } else {
-        // Se não houver hora definida, assumir meia-noite
-        dataHoraTarefa.setHours(0, 0, 0, 0);
-      }
+      const dataHoraTarefa = converterParaDate(tarefa.data, tarefa.hora);
       
-      // Calcular o tempo de antecedência em milissegundos
-      const milissegundosAntecedencia = configNotificacoes.antecedencia.valor * 
-        (configNotificacoes.antecedencia.unidade === 'minutos' ? 60000 : 3600000);
+      // Verificar se a data é válida
+      if (isNaN(dataHoraTarefa.getTime())) {
+        console.warn(`Data/hora inválida para tarefa ${tarefa.id}: ${tarefa.data} ${tarefa.hora || 'sem hora'}`);
+        return;
+      }
       
       // Verificar se está na hora de notificar
       const tempoParaTarefa = dataHoraTarefa.getTime() - agora.getTime();
@@ -175,9 +258,11 @@ export const verificarTarefasPendentes = (
       const tempoDesdeUltimaNotificacao = agora.getTime() - ultimaNotificacao;
       
       // Verificar se tempo está dentro da margem de notificação
-      // Para tempos curtos (< 5 minutos), ampliamos a margem de verificação
-      const margemDeVerificacao = Math.min(30000, milissegundosAntecedencia * 0.1); // 30 segundos ou 10% do tempo, o que for menor
-      const dentroDoLimite = Math.abs(tempoParaTarefa - milissegundosAntecedencia) <= margemDeVerificacao;
+      // Aumentamos a margem de verificação para mais precisão
+      const margemDeVerificacao = 30000; // 30 segundos em ms
+      
+      // Se o tempo restante estiver próximo do tempo de antecedência configurado
+      const dentroDoLimiteDeAntecedencia = Math.abs(tempoParaTarefa - milissegundosAntecedencia) <= margemDeVerificacao;
       
       // Só notificar se: 
       // 1. O tempo para a tarefa for positivo (tarefa ainda não ocorreu)
@@ -185,15 +270,31 @@ export const verificarTarefasPendentes = (
       // 3. A última notificação foi há mais de 5 minutos ou nunca foi feita
       const notificacaoRecente = tempoDesdeUltimaNotificacao <= 300000 && ultimaNotificacao !== 0;
       
+      if (debug) {
+        console.log(
+          `Tarefa: ${tarefa.titulo} (${tarefa.data} ${tarefa.hora || "00:00"})\n` +
+          `  • Tempo até a tarefa: ${formatarTempo(tempoParaTarefa)}\n` +
+          `  • Notificar com antecedência: ${formatarTempo(milissegundosAntecedencia)}\n` +
+          `  • Dentro do limite: ${dentroDoLimiteDeAntecedencia}\n` +
+          `  • Notificação recente: ${notificacaoRecente}\n` +
+          `  • Hora da tarefa: ${dataHoraTarefa.toLocaleString()}`
+        );
+      }
+      
+      // Se entrar nessas condições, enviar notificação
       if (tempoParaTarefa > 0 && 
-          dentroDoLimite && 
+          dentroDoLimiteDeAntecedencia && 
           !notificacaoRecente) {
         
         // Enviar notificação
         try {
+          const horaFormatada = dataHoraTarefa.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+          
           const notification = new Notification(`Lembrete: ${tarefa.titulo}`, {
-            body: `Tarefa programada para ${formatarTempo(tempoParaTarefa)}`,
+            body: `Tarefa agendada para ${horaFormatada} (em ${formatarTempo(tempoParaTarefa)})`,
             icon: '/favicon.ico',
+            tag: `tarefa-${tarefa.id}`, // Evita múltiplas notificações para a mesma tarefa
+            requireInteraction: true // A notificação permanece até o usuário interagir com ela
           });
           
           // Registrar que notificamos esta tarefa
@@ -203,6 +304,15 @@ export const verificarTarefasPendentes = (
           if (configNotificacoes.comSom) {
             reproduzirSomNotificacao();
           }
+          
+          console.log(`✅ Notificação enviada para tarefa: ${tarefa.titulo}`);
+          
+          // Evento de clique na notificação
+          notification.onclick = () => {
+            // Focar na janela e direcionar para a página de tarefas
+            window.focus();
+            window.location.href = '/tarefas';
+          };
         } catch (error) {
           console.error("Erro ao enviar notificação:", error);
         }

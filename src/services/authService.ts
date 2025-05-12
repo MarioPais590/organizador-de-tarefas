@@ -11,10 +11,25 @@ export const login = async (email: string, senha: string) => {
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
-      password: senha
+      password: senha,
     });
     
     if (error) throw error;
+    
+    // Garantir que a sessão esteja persistida
+    if (data.session) {
+      // O supabase já se encarrega de armazenar a sessão,
+      // mas podemos verificar se foi salva corretamente
+      const authData = localStorage.getItem('supabase_auth_token');
+      if (!authData) {
+        console.warn("Aviso: Dados de autenticação não foram persistidos automaticamente");
+        // Forçar salvamento manual da sessão
+        localStorage.setItem('supabase_auth_token', JSON.stringify({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token
+        }));
+      }
+    }
     
     toast.success("Login realizado com sucesso!");
     return { sucesso: true, session: data.session, user: data.user };
@@ -110,12 +125,22 @@ export const registro = async (email: string, senha: string, nome: string) => {
  */
 export const logout = async (): Promise<boolean> => {
   try {
-    const { error } = await supabase.auth.signOut();
+    // Remover sessão do Supabase e do navegador
+    const { error } = await supabase.auth.signOut({
+      scope: 'local' // Garante que fazemos logout apenas localmente
+    });
     
     if (error) throw error;
     
     // Limpar quaisquer dados locais da sessão
-    localStorage.removeItem('supabase.auth.token');
+    localStorage.removeItem('supabase_auth_token');
+    
+    // Limpar possíveis valores salvos adicionais
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('supabase.auth.') || key.includes('supabase')) {
+        localStorage.removeItem(key);
+      }
+    }
     
     toast.success("Logout realizado com sucesso!");
     return true;
@@ -132,18 +157,58 @@ export const logout = async (): Promise<boolean> => {
  */
 export const tryAutoLogin = async () => {
   try {
-    const { data, error } = await supabase.auth.getSession();
+    console.log("Tentando auto login...");
     
-    if (error) throw error;
+    // Primeiro tentar obter a sessão atual
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
     
-    if (data.session) {
-      return { sucesso: true, session: data.session };
+    if (sessionError) {
+      console.error("Erro ao obter sessão:", sessionError);
+      throw sessionError;
     }
     
-    return { sucesso: false, error: null };
+    if (sessionData.session) {
+      console.log("Sessão existente encontrada");
+      return { sucesso: true, session: sessionData.session, error: null };
+    }
+    
+    // Se não há sessão, verificar se temos um token no localStorage
+    const tokenData = localStorage.getItem('supabase_auth_token');
+    if (tokenData) {
+      try {
+        console.log("Token encontrado no localStorage, tentando restaurar sessão");
+        const parsedToken = JSON.parse(tokenData);
+        
+        // Tentar restaurar a sessão com o token salvo
+        if (parsedToken.refresh_token) {
+          const { data, error } = await supabase.auth.refreshSession({
+            refresh_token: parsedToken.refresh_token
+          });
+          
+          if (error) {
+            console.error("Erro ao restaurar sessão:", error);
+            // Se falhar, limpar o token inválido
+            localStorage.removeItem('supabase_auth_token');
+            throw error;
+          }
+          
+          if (data.session) {
+            console.log("Sessão restaurada com sucesso");
+            return { sucesso: true, session: data.session, error: null };
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao processar token do localStorage:", err);
+        // Limpar token inválido
+        localStorage.removeItem('supabase_auth_token');
+      }
+    }
+    
+    console.log("Sem sessão válida disponível");
+    return { sucesso: false, session: null, error: null };
   } catch (error) {
     console.error("Erro ao tentar auto login:", error);
-    return { sucesso: false, error };
+    return { sucesso: false, session: null, error };
   }
 };
 
@@ -162,8 +227,23 @@ export const verificarAutenticacao = async () => {
 };
 
 /**
- * Limpa o estado de autenticação
+ * Limpa o estado de autenticação removendo todos os dados
+ * relacionados à autenticação do localStorage
  */
 export const cleanupAuthState = () => {
-  localStorage.removeItem('supabase.auth.token');
+  // Remover token principal
+  localStorage.removeItem('supabase_auth_token');
+  
+  // Remover qualquer outra chave relacionada ao supabase ou autenticação
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith('supabase.auth.') || 
+        key.includes('supabase') || 
+        key.includes('auth') ||
+        key.includes('token')) {
+      localStorage.removeItem(key);
+    }
+  }
+  
+  // Para depuração
+  console.log("Estado de autenticação limpo");
 }; 

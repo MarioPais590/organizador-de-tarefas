@@ -570,14 +570,17 @@ export const createAppFunctions = (
     try {
       if (!user) {
         toast.error("Você precisa estar logado para atualizar configurações");
-        return;
+        return false;
       }
+      
+      console.log("Atualizando configurações de notificação:", config);
+      console.log("Configurações atuais:", configNotificacoes);
       
       // Verificar se notificações estão sendo ativadas
       if (config.ativadas === true && configNotificacoes.ativadas === false) {
         if (!("Notification" in window)) {
           toast.error("Seu navegador não suporta notificações");
-          return;
+          return false;
         }
         
         // Se precisamos de permissão e ainda não temos
@@ -591,7 +594,7 @@ export const createAppFunctions = (
           } catch (error) {
             console.error("Erro ao solicitar permissão:", error);
             toast.error("Ocorreu um erro ao solicitar permissão para notificações");
-            return;
+            return false;
           }
         }
       }
@@ -600,21 +603,53 @@ export const createAppFunctions = (
       const dadosParaAtualizar: any = {};
       
       if (config.ativadas !== undefined) {
-        dadosParaAtualizar.ativadas = config.ativadas;
+        dadosParaAtualizar.ativadas = Boolean(config.ativadas);
       }
       
       if (config.comSom !== undefined) {
-        dadosParaAtualizar.com_som = config.comSom;
+        dadosParaAtualizar.com_som = Boolean(config.comSom);
       }
       
       if (config.antecedencia) {
         if (config.antecedencia.valor !== undefined) {
-          dadosParaAtualizar.antecedencia_valor = config.antecedencia.valor;
+          // Garantir que o valor seja um número inteiro válido
+          let valor = parseInt(String(config.antecedencia.valor), 10);
+          
+          // Validar o valor
+          if (isNaN(valor) || valor < 1) {
+            valor = 30; // Valor padrão se inválido
+            console.warn("Valor de antecedência inválido, utilizando 30 como padrão");
+          }
+          
+          // Aplicar limites com base na unidade
+          const unidade = config.antecedencia.unidade || configNotificacoes.antecedencia.unidade;
+          const maxValor = unidade === 'minutos' ? 60 : 24;
+          
+          if (valor > maxValor) {
+            valor = maxValor;
+            console.warn(`Valor de antecedência excede o máximo para ${unidade}, limitando a ${maxValor}`);
+          }
+          
+          dadosParaAtualizar.antecedencia_valor = valor;
+          console.log(`Atualizando valor de antecedência para: ${valor}`);
         }
         
         if (config.antecedencia.unidade !== undefined) {
-          dadosParaAtualizar.antecedencia_unidade = config.antecedencia.unidade;
+          // Validar que a unidade é um valor permitido
+          const unidade = config.antecedencia.unidade === 'minutos' || config.antecedencia.unidade === 'horas' 
+            ? config.antecedencia.unidade 
+            : 'minutos';
+            
+          dadosParaAtualizar.antecedencia_unidade = unidade;
+          console.log(`Atualizando unidade de antecedência para: ${unidade}`);
         }
+      }
+      
+      console.log("Dados para atualizar no Supabase:", dadosParaAtualizar);
+      
+      if (Object.keys(dadosParaAtualizar).length === 0) {
+        console.log("Nenhum dado para atualizar");
+        return false;
       }
       
       // Verificar se já existe registro para esse usuário
@@ -625,49 +660,95 @@ export const createAppFunctions = (
         .maybeSingle();
       
       if (erroConsulta && erroConsulta.code !== 'PGRST116') {
+        console.error("Erro ao consultar configurações existentes:", erroConsulta);
         throw erroConsulta;
       }
       
+      console.log("Configuração existente:", existente);
+      
+      let dadosAtualizados;
+      
       // Inserir ou atualizar registro
       if (existente) {
-        const { error } = await supabase
+        console.log("Atualizando configuração existente");
+        const { data, error } = await supabase
           .from('config_notificacoes')
           .update(dadosParaAtualizar)
-          .eq('user_id', user.id);
+          .eq('user_id', user.id)
+          .select();
         
-        if (error) throw error;
+        if (error) {
+          console.error("Erro ao atualizar configuração:", error);
+          throw error;
+        }
+        
+        dadosAtualizados = data;
+        console.log("Configuração atualizada no banco:", data);
       } else {
-        const { error } = await supabase
+        // Garantir que temos valores completos para criação de configuração
+        if (!dadosParaAtualizar.ativadas) dadosParaAtualizar.ativadas = configNotificacoes.ativadas;
+        if (dadosParaAtualizar.com_som === undefined) dadosParaAtualizar.com_som = configNotificacoes.comSom;
+        if (!dadosParaAtualizar.antecedencia_valor) dadosParaAtualizar.antecedencia_valor = configNotificacoes.antecedencia.valor;
+        if (!dadosParaAtualizar.antecedencia_unidade) dadosParaAtualizar.antecedencia_unidade = configNotificacoes.antecedencia.unidade;
+        
+        console.log("Criando nova configuração com dados completos:", {
+          user_id: user.id,
+          ...dadosParaAtualizar
+        });
+        
+        const { data, error } = await supabase
           .from('config_notificacoes')
           .insert({
             user_id: user.id,
             ...dadosParaAtualizar
-          });
+          })
+          .select();
         
-        if (error) throw error;
-      }
-      
-      // Atualizar estado local
-      setConfigNotificacoes(prev => {
-        const updatedConfig = { ...prev };
-        
-        if (config.ativadas !== undefined) updatedConfig.ativadas = config.ativadas;
-        if (config.comSom !== undefined) updatedConfig.comSom = config.comSom;
-        
-        if (config.antecedencia) {
-          updatedConfig.antecedencia = { ...updatedConfig.antecedencia };
-          
-          if (config.antecedencia.valor !== undefined) {
-            updatedConfig.antecedencia.valor = config.antecedencia.valor;
-          }
-          
-          if (config.antecedencia.unidade !== undefined) {
-            updatedConfig.antecedencia.unidade = config.antecedencia.unidade;
-          }
+        if (error) {
+          console.error("Erro ao criar configuração:", error);
+          throw error;
         }
         
-        return updatedConfig;
-      });
+        dadosAtualizados = data;
+        console.log("Nova configuração criada no banco:", data);
+      }
+      
+      // Obter todas as configurações atualizadas do servidor para sincronizar o estado
+      if (!dadosAtualizados || dadosAtualizados.length === 0) {
+        console.log("Buscando configurações atualizadas diretamente do servidor...");
+        const { data: configAtualizada, error: errorBusca } = await supabase
+          .from('config_notificacoes')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+          
+        if (errorBusca) {
+          console.error("Erro ao buscar configurações atualizadas:", errorBusca);
+          throw errorBusca;
+        }
+        
+        dadosAtualizados = [configAtualizada];
+      }
+      
+      if (dadosAtualizados && dadosAtualizados.length > 0) {
+        const configAtualizada = dadosAtualizados[0];
+        
+        const novasConfiguracoes = {
+          ativadas: configAtualizada.ativadas,
+          comSom: configAtualizada.com_som,
+          antecedencia: {
+            valor: configAtualizada.antecedencia_valor,
+            unidade: configAtualizada.antecedencia_unidade as 'minutos' | 'horas'
+          }
+        };
+        
+        console.log("Sincronizando estado com dados do servidor:", novasConfiguracoes);
+        
+        // Definir estado diretamente com os valores do servidor
+        setConfigNotificacoes(novasConfiguracoes);
+      } else {
+        console.warn("Não foi possível obter configurações atualizadas do servidor");
+      }
       
       // Se as notificações foram ativadas ou configurações alteradas, reiniciar o serviço
       if (config.ativadas === true || 
@@ -693,11 +774,14 @@ export const createAppFunctions = (
       if (showToast) {
         toast.success("Configurações de notificações atualizadas!");
       }
+      
+      return true; // Retornar true para indicar sucesso
     } catch (error) {
       console.error("Erro ao atualizar configurações de notificações:", error);
       if (showToast) {
         toast.error("Erro ao atualizar configurações de notificações. Por favor, tente novamente.");
       }
+      return false; // Retornar false para indicar falha
     }
   };
 

@@ -1,7 +1,15 @@
-
 import { PageHeader } from "@/components/PageHeader";
 import { useApp } from "@/context/AppContext";
-import { AppearanceSettings, NotificationSettings, DataPrivacySettings, AboutSection } from "@/components/settings";
+import { 
+  AppearanceSettings, 
+  NotificationSettings, 
+  DataPrivacySettings, 
+  AboutSection,
+  GeneralSettings,
+  DatabaseSettings
+} from "@/components/settings";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DebugNotifications } from "@/components/settings/notifications/DebugNotifications";
 
 export default function Configuracoes() {
   const { 
@@ -14,6 +22,9 @@ export default function Configuracoes() {
     limparTodosDados
   } = useApp();
   
+  // Check if environment is development
+  const isDevelopment = process.env.NODE_ENV === 'development';
+
   return (
     <div className="animate-in">
       <PageHeader 
@@ -22,12 +33,40 @@ export default function Configuracoes() {
       />
 
       <div className="grid gap-6">
-        <AppearanceSettings />
-        
-        <NotificationSettings 
-          configNotificacoes={configNotificacoes}
-          atualizarConfigNotificacoes={atualizarConfigNotificacoes}
-        />
+        <Tabs defaultValue="general" className="w-full">
+          <TabsList className="grid grid-cols-4 mb-4">
+            <TabsTrigger value="general">Geral</TabsTrigger>
+            <TabsTrigger value="appearance">Aparência</TabsTrigger>
+            <TabsTrigger value="notifications">Notificações</TabsTrigger>
+            <TabsTrigger value="database">Dados</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="general" className="space-y-4">
+            <GeneralSettings />
+          </TabsContent>
+          
+          <TabsContent value="appearance" className="space-y-4">
+            <AppearanceSettings />
+          </TabsContent>
+          
+          <TabsContent value="notifications" className="space-y-4">
+            <NotificationSettings 
+              configNotificacoes={configNotificacoes} 
+              atualizarConfigNotificacoes={atualizarConfigNotificacoes} 
+            />
+            
+            {isDevelopment && (
+              <DebugNotifications 
+                tarefas={tarefas}
+                configNotificacoes={configNotificacoes}
+              />
+            )}
+          </TabsContent>
+          
+          <TabsContent value="database" className="space-y-4">
+            <DatabaseSettings />
+          </TabsContent>
+        </Tabs>
         
         <DataPrivacySettings
           perfil={perfil}

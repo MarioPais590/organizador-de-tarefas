@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
@@ -24,9 +23,17 @@ export function AdvanceTimeSelector({
   // Definir valor máximo permitido com base na unidade
   const maxValorPermitido = unidade === "minutos" ? 60 : 24;
   
+  // Garantir que valor esteja dentro dos limites
+  const valorSafe = Math.max(1, Math.min(valor, maxValorPermitido));
+  
   // Validar e atualizar o valor de entrada manual
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const novoValor = parseInt(e.target.value, 10);
+    // Extrair valor da string e converter para número inteiro
+    const inputValue = e.target.value.replace(/[^0-9]/g, '');
+    const novoValor = parseInt(inputValue, 10);
+    
+    console.log(`Input alterado para: "${e.target.value}" -> valor numérico: ${novoValor}`);
+    
     if (isNaN(novoValor) || novoValor < 1) {
       onValorChange(1); // Valor mínimo
     } else if (novoValor > maxValorPermitido) {
@@ -39,9 +46,9 @@ export function AdvanceTimeSelector({
   // Formatar o texto de antecedência para exibição
   const formatarAntecedencia = () => {
     if (unidade === "minutos") {
-      return `${valor} minuto${valor !== 1 ? 's' : ''}`;
+      return `${valorSafe} minuto${valorSafe !== 1 ? 's' : ''}`;
     } else {
-      return `${valor} hora${valor !== 1 ? 's' : ''}`;
+      return `${valorSafe} hora${valorSafe !== 1 ? 's' : ''}`;
     }
   };
 
@@ -56,12 +63,16 @@ export function AdvanceTimeSelector({
         <RadioGroup 
           value={unidade}
           onValueChange={(value) => {
-            onUnidadeChange(value as "minutos" | "horas");
+            const novaUnidade = value as "minutos" | "horas";
+            console.log(`Unidade alterada para: ${novaUnidade}`);
+            
+            onUnidadeChange(novaUnidade);
+            
             // Ajustar valor para ser compatível com a nova unidade
-            if (value === "minutos" && valor > 60) {
+            if (novaUnidade === "minutos" && valorSafe > 60) {
               onValorChange(60);
             }
-            if (value === "horas" && valor > 24) {
+            if (novaUnidade === "horas" && valorSafe > 24) {
               onValorChange(24);
             }
           }}
@@ -83,11 +94,15 @@ export function AdvanceTimeSelector({
       <div className="flex gap-4 items-center">
         <div className="flex-1">
           <Slider
-            value={[valor]}
+            value={[valorSafe]}
             min={1}
             max={maxValorPermitido}
             step={1}
-            onValueChange={([value]) => onValorChange(value)}
+            onValueChange={([value]) => {
+              const valorInteiro = Math.round(value);
+              console.log(`Slider alterado para: ${valorInteiro}`);
+              onValorChange(valorInteiro);
+            }}
             disabled={disabled}
             className="py-2"
           />
@@ -95,7 +110,7 @@ export function AdvanceTimeSelector({
         <div className="w-20">
           <Input 
             type="number"
-            value={valor}
+            value={valorSafe}
             onChange={handleInputChange}
             min={1}
             max={maxValorPermitido}

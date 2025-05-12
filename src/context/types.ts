@@ -1,4 +1,3 @@
-
 import { Tarefa, Categoria, DadosPerfil, Rotina, ConfiguracoesNotificacao } from '@/types';
 
 export interface AppContextType {
@@ -20,7 +19,7 @@ export interface AppContextType {
   adicionarRotina: (rotina: Omit<Rotina, 'id'>) => Promise<void>;
   atualizarRotina: (id: string, rotina: Partial<Rotina>) => Promise<void>;
   removerRotina: (id: string) => Promise<void>;
-  atualizarConfigNotificacoes: (config: Partial<ConfiguracoesNotificacao>, showToast?: boolean) => Promise<void>;
+  atualizarConfigNotificacoes: (config: Partial<ConfiguracoesNotificacao>, showToast?: boolean) => Promise<boolean | void>;
   verificarTarefasPendentes: () => void;
   limparTodosDados: () => Promise<void>;
   logout: () => Promise<boolean>; // Changed return type from Promise<void> to Promise<boolean>
