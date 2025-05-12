@@ -52,6 +52,59 @@ export async function verificarIconesPWA(): Promise<boolean> {
 }
 
 /**
+ * Verifica se os ícones são diferentes entre si (não são placeholders)
+ * @returns Promise<boolean> - true se os ícones parecem ser reais
+ */
+export async function verificarIconesDiferentes(): Promise<boolean> {
+  const iconSizes = [72, 96, 128, 144, 152, 192, 384, 512];
+  const iconPromises = iconSizes.map(size => {
+    return new Promise<{size: number, width: number, height: number}>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        resolve({
+          size,
+          width: img.width,
+          height: img.height
+        });
+      };
+      img.onerror = () => {
+        reject(new Error(`Erro ao carregar ícone ${size}x${size}`));
+      };
+      img.src = `/icons/icon-${size}x${size}.png?v=${Date.now()}`;
+    });
+  });
+
+  try {
+    const icones = await Promise.all(iconPromises);
+    
+    // Verificar se os ícones têm dimensões diferentes
+    const dimensoesDiferentes = icones.some((icone, i) => {
+      if (i === 0) return true;
+      const anterior = icones[i-1];
+      return icone.width !== anterior.width || icone.height !== anterior.height;
+    });
+    
+    // Verificar se os ícones têm as dimensões esperadas
+    const dimensoesCorretas = icones.every(icone => 
+      icone.width === icone.size && icone.height === icone.size
+    );
+    
+    if (!dimensoesDiferentes) {
+      console.error('Todos os ícones parecem ser iguais, provavelmente são placeholders');
+    }
+    
+    if (!dimensoesCorretas) {
+      console.error('Os ícones não têm as dimensões corretas esperadas');
+    }
+    
+    return dimensoesDiferentes && dimensoesCorretas;
+  } catch (error) {
+    console.error('Erro ao verificar ícones:', error);
+    return false;
+  }
+}
+
+/**
  * Força a atualização dos ícones do PWA limpando o cache
  * @returns Promise<boolean> - true se a atualização foi bem-sucedida
  */

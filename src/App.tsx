@@ -23,6 +23,7 @@ import Perfil from "./pages/Perfil";
 import Configuracoes from "./pages/Configuracoes";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
+import DiagnosticPage from "./pages/DiagnosticPage";
 
 // Componente que verifica autenticação
 import { AuthGuard } from "./components/AuthGuard";
@@ -215,6 +216,16 @@ const App = () => {
                             <Layout>
                               <AuthGuard>
                                 <Configuracoes />
+                              </AuthGuard>
+                            </Layout>
+                          } 
+                        />
+                        <Route 
+                          path="/diagnostico" 
+                          element={
+                            <Layout>
+                              <AuthGuard>
+                                <DiagnosticPage />
                               </AuthGuard>
                             </Layout>
                           } 

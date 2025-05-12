@@ -1,5 +1,5 @@
 // Versão do cache
-const CACHE_NAME = 'organizador-tarefas-v3';
+const CACHE_NAME = 'organizador-tarefas-v6';
 
 // Arquivos a serem cacheados
 const urlsToCache = [

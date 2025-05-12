@@ -10,7 +10,8 @@ import {
   Tag,
   LogOut,
   Sun,
-  Moon
+  Moon,
+  Activity
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
@@ -57,6 +58,7 @@ export function NavItems({ isCollapsed, onNavigation }: NavItemsProps) {
       <NavItem to="/categorias" icon={Tag} label="Categorias" isCollapsed={isCollapsed} onClick={onNavigation} />
       <NavItem to="/perfil" icon={User} label="Perfil" isCollapsed={isCollapsed} onClick={onNavigation} />
       <NavItem to="/configuracoes" icon={Settings} label="Configurações" isCollapsed={isCollapsed} onClick={onNavigation} />
+      <NavItem to="/diagnostico" icon={Activity} label="Diagnóstico" isCollapsed={isCollapsed} onClick={onNavigation} />
       
       {/* Botão de alternar tema */}
       <div

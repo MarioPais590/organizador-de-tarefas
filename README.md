@@ -1,158 +1,95 @@
-# Organizador de Tarefas
+# Organizador de Tarefas - PWA
 
-Aplicativo web para gerenciamento de tarefas com notificações e anexos.
+Um aplicativo web progressivo (PWA) para organização de tarefas e aumento de produtividade.
 
 ## Recursos
 
-- Autenticação de usuários
-- Criação, edição e exclusão de tarefas
-- Categorização de tarefas
-- Anexos em tarefas (com compressão automática de imagens)
-- Notificações no navegador
-- Modo responsivo (desktop e mobile)
-- Tema claro e escuro
+- Interface de usuário moderna e responsiva
+- Modo offline com sincronização automática
+- Notificações em segundo plano
+- Instalável como aplicativo nativo em dispositivos móveis e desktop
+- Temas claro e escuro
 
 ## Tecnologias
 
-- React 18
+- React
 - TypeScript
+- Tailwind CSS
 - Vite
-- Supabase (autenticação e banco de dados)
-- TailwindCSS
-- shadcn/ui
-- React Router v6
-- React Query
-- Sonner (toasts)
+- Service Workers
+- IndexedDB
+- Push API
 
-## Estrutura do Projeto
+## Instalação
 
-```
-src/
-├── components/     # Componentes reutilizáveis
-├── context/        # Contextos React com lógica de estado global
-├── hooks/          # Hooks personalizados
-├── integrations/   # Integrações com serviços externos
-├── lib/            # Bibliotecas e utilitários
-├── pages/          # Páginas da aplicação
-├── services/       # Serviços para chamadas à API
-├── types/          # Definições de tipos TypeScript
-└── utils/          # Funções utilitárias
-```
+1. Clone o repositório:
+   ```bash
+   git clone https://github.com/seu-usuario/organizador-de-tarefas.git
+   cd organizador-de-tarefas
+   ```
 
-## Arquitetura
+2. Instale as dependências:
+   ```bash
+   npm install
+   ```
 
-O projeto segue uma arquitetura modular baseada em contextos, onde:
+3. Execute o servidor de desenvolvimento:
+   ```bash
+   npm run dev
+   ```
 
-- **AuthContext**: Gerencia autenticação e sessão do usuário
-- **TaskContext**: Gerencia operações relacionadas a tarefas e categorias
-- **NotificationContext**: Gerencia notificações do navegador
+4. Acesse o aplicativo em:
+   ```
+   http://localhost:8080
+   ```
 
-Cada contexto exporta um hook personalizado para fácil acesso aos seus dados e métodos.
+## Recursos do PWA
 
-## Serviços
+### Ícones
 
-Os serviços são responsáveis por interagir com o backend:
+O aplicativo utiliza ícones personalizados para a instalação como PWA. Os ícones são gerados automaticamente a partir de uma imagem base usando o script `generateIconsFromPng.js`.
 
-- **taskService**: Operações CRUD para tarefas
-- **anexoService**: Gerenciamento de anexos (upload, processamento)
-- **categoriaService**: Operações CRUD para categorias
-- **notificationService**: Gerenciamento de notificações do navegador
-- **authService**: Autenticação e gestão de usuários
+Para atualizar os ícones:
 
-## Inicialização
+1. Substitua o arquivo `public/task-manager-icon.png` pela sua imagem base
+2. Execute o script:
+   ```bash
+   node src/utils/generateIconsFromPng.js
+   ```
 
-Para iniciar o projeto em modo de desenvolvimento:
+### Service Worker
 
-```bash
-npm install
-npm run dev
-```
+O aplicativo utiliza um service worker para permitir o funcionamento offline e notificações em segundo plano. O service worker está configurado para:
 
-Para construir o projeto para produção:
+- Cachear recursos estáticos
+- Fornecer uma experiência offline
+- Enviar notificações mesmo quando o aplicativo está fechado
+- Sincronizar dados em segundo plano
+
+### Diagnóstico do PWA
+
+O aplicativo inclui uma página de diagnóstico que permite verificar o status do PWA:
+
+- Status de instalação
+- Registro do service worker
+- Validação dos ícones
+- Verificação de compatibilidade com o dispositivo
+
+Acesse a página de diagnóstico em `/diagnostico` após fazer login no aplicativo.
+
+## Build para Produção
+
+Para gerar a versão de produção:
 
 ```bash
 npm run build
 ```
 
-## Banco de Dados
+Os arquivos gerados estarão na pasta `dist`.
 
-O aplicativo utiliza o Supabase como backend, com as seguintes tabelas:
+## Licença
 
-- **profiles**: Perfis de usuário
-- **tarefas**: Tarefas do usuário
-- **categorias**: Categorias para organizar tarefas
-- **anexos**: Anexos de tarefas
-- **tarefa_anexos**: Relacionamento entre tarefas e anexos
-- **config_notificacoes**: Configurações de notificação do usuário
-
-## Documentação
-
-A documentação completa do projeto pode ser encontrada na pasta `docs`:
-
-- [Documentação de Referência](docs/documentacao-referencia.md)
-- [Migrações de Banco de Dados](docs/migrations.md)
-- [Instruções para Notificações](docs/notificacoes_instrucoes.md)
-
-## Sincronização entre ambientes
-
-Este projeto pode ser executado em diferentes ambientes:
-
-1. **Local (Desenvolvimento)**: Seu ambiente de trabalho local
-2. **Lovable**: Ambiente de teste/homologação
-3. **Produção**: Ambiente final para usuários
-
-### Como manter os ambientes sincronizados
-
-Para garantir que todos os ambientes funcionem corretamente, siga estas instruções:
-
-1. **Banco de dados (Supabase)**:
-   - Execute os scripts SQL da pasta `docs/migrations.md` em cada ambiente
-   - Marque cada migração como concluída conforme aplicar
-
-2. **Código**:
-   - Use o Git para controle de versão
-   - Faça commit das alterações e envie para o repositório remoto
-   - Atualize os outros ambientes a partir do repositório
-
-```bash
-# Para enviar alterações para o repositório:
-git add .
-git commit -m "Descrição das alterações"
-git push origin main
-
-# Para atualizar outro ambiente a partir do repositório:
-git pull origin main
-```
-
-## Compatibilidade entre ambientes
-
-O código foi adaptado para ser compatível com diferentes esquemas de banco de dados, permitindo que funcione mesmo quando algumas colunas não existem em todos os ambientes.
-
-## Requisitos
-
-- Node.js 18+
-- npm ou Yarn
-- Conta no Supabase
-
-## Executando localmente
-
-```bash
-# Instalar dependências
-npm install
-
-# Executar em desenvolvimento
-npm run dev
-```
-
-O aplicativo estará disponível em `http://localhost:5173` (ou a porta indicada no terminal).
-
-## Implementação de melhorias
-
-Ao adicionar novos recursos:
-
-1. Documente as alterações no banco de dados em `docs/migrations.md`
-2. Escreva código que seja compatível com todos os ambientes
-3. Teste em ambiente local antes de enviar para produção
+Este projeto está licenciado sob a licença MIT - veja o arquivo LICENSE para mais detalhes.
 
 # Welcome to your Lovable project
 

@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { verificarIconesPWA, isPWAInstalado, isIOS, isSafari, podeInstalarPWA, forcarAtualizacaoIconesPWA } from '@/utils/pwaHelpers';
-import { AlertCircle, CheckCircle, Download, RefreshCw, Image } from 'lucide-react';
+import { verificarIconesPWA, isPWAInstalado, isIOS, isSafari, podeInstalarPWA, forcarAtualizacaoIconesPWA, verificarIconesDiferentes } from '@/utils/pwaHelpers';
+import { AlertCircle, CheckCircle, Download, RefreshCw, Image, Upload } from 'lucide-react';
 
 export function PWADiagnostics() {
   const [iconesSaoValidos, setIconesSaoValidos] = useState<boolean | null>(null);
+  const [iconesSaoReais, setIconesSaoReais] = useState<boolean | null>(null);
   const [instalado, setInstalado] = useState(false);
   const [podeInstalar, setPodeInstalar] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
@@ -30,6 +31,10 @@ export function PWADiagnostics() {
     // Verificar se os ícones são válidos
     const icones = await verificarIconesPWA();
     setIconesSaoValidos(icones);
+    
+    // Verificar se os ícones são reais (não são placeholders)
+    const iconesReais = await verificarIconesDiferentes();
+    setIconesSaoReais(iconesReais);
     
     // Verificar se o service worker está registrado
     if ('serviceWorker' in navigator) {
@@ -107,6 +112,17 @@ export function PWADiagnostics() {
           </div>
           
           <div className="flex justify-between items-center">
+            <span>Ícones são reais:</span>
+            {iconesSaoReais === null ? (
+              <Badge variant="outline">Verificando...</Badge>
+            ) : iconesSaoReais ? (
+              <Badge variant="default" className="bg-green-500 text-white">Sim</Badge>
+            ) : (
+              <Badge variant="destructive">Não (possíveis placeholders)</Badge>
+            )}
+          </div>
+          
+          <div className="flex justify-between items-center">
             <span>Dispositivo iOS:</span>
             <Badge variant={isIOS() ? "default" : "outline"}>
               {isIOS() ? "Sim" : "Não"}
@@ -136,6 +152,16 @@ export function PWADiagnostics() {
             <p className="text-sm">
               Foram detectados problemas com os ícones do PWA. Isso pode impedir a instalação correta do aplicativo.
               Tente usar o botão "Atualizar ícones" abaixo.
+            </p>
+          </div>
+        )}
+        
+        {!iconesSaoReais && iconesSaoReais !== null && (
+          <div className="flex items-center gap-2 p-3 bg-red-100 text-red-800 rounded-md">
+            <AlertCircle size={18} />
+            <p className="text-sm">
+              Os ícones do PWA parecem ser placeholders ou estão corrompidos. Isso explica por que o ícone da Vercel está sendo usado em vez do seu ícone personalizado.
+              Você precisa substituir os ícones na pasta public/icons por ícones reais com os tamanhos corretos.
             </p>
           </div>
         )}
@@ -187,6 +213,16 @@ export function PWADiagnostics() {
               </div>
             ))}
           </div>
+        </div>
+        
+        <div className="mt-4 p-4 border rounded-md bg-gray-50">
+          <h3 className="text-lg font-medium mb-2">Instruções para corrigir ícones</h3>
+          <ol className="list-decimal pl-5 space-y-2">
+            <li>Crie ícones nos tamanhos corretos: 72x72, 96x96, 128x128, 144x144, 152x152, 192x192, 384x384, 512x512</li>
+            <li>Crie também um ícone "maskable" de 512x512 com área de segurança (ícone dentro de um círculo)</li>
+            <li>Substitua os arquivos na pasta <code>public/icons/</code></li>
+            <li>Recarregue a página e use o botão "Atualizar ícones" abaixo</li>
+          </ol>
         </div>
       </CardContent>
       <CardFooter className="flex flex-wrap gap-2">
