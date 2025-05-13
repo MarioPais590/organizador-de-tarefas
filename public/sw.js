@@ -1,5 +1,5 @@
 // Versão do cache
-const CACHE_NAME = 'organizador-tarefas-v9';
+const CACHE_NAME = 'organizador-tarefas-v11';
 
 // Arquivos a serem cacheados
 const urlsToCache = [
@@ -8,7 +8,15 @@ const urlsToCache = [
   '/manifest.json',
   '/favicon.ico',
   // Ícones
-  '/task-manager-icon.png',
+  '/icons/icon-512x512.png',
+  '/icons/icon-384x384.png',
+  '/icons/icon-192x192.png',
+  '/icons/icon-152x152.png',
+  '/icons/icon-144x144.png',
+  '/icons/icon-128x128.png',
+  '/icons/icon-96x96.png',
+  '/icons/icon-72x72.png',
+  '/icons/maskable-icon-512x512.png',
   // Assets principais
   '/assets/index-CwkMYUte.css',
   '/assets/index-Bracgnp6.js'
@@ -85,6 +93,8 @@ self.addEventListener('activate', (event) => {
       );
     }).then(() => {
       console.log('[Service Worker] Agora está ativo e controlando a página');
+      // Verificar e atualizar ícones após ativação
+      return verificarIcones();
     })
   );
   // Garante que o service worker controle imediatamente todas as páginas
@@ -104,7 +114,7 @@ self.addEventListener('push', (event) => {
     notificationData = {
       title: 'Nova notificação',
       body: 'Você tem uma tarefa pendente',
-      icon: '/task-manager-icon.png'
+      icon: '/icons/icon-192x192.png'
     };
   }
   
@@ -112,8 +122,8 @@ self.addEventListener('push', (event) => {
   const title = notificationData.title || 'Organizador de Tarefas';
   const options = {
     body: notificationData.body || 'Você tem uma tarefa pendente',
-    icon: notificationData.icon || '/task-manager-icon.png',
-    badge: '/task-manager-icon.png',
+    icon: notificationData.icon || '/icons/icon-192x192.png',
+    badge: '/icons/icon-72x72.png',
     vibrate: [100, 50, 100],
     data: {
       dateOfArrival: Date.now(),
@@ -123,12 +133,12 @@ self.addEventListener('push', (event) => {
       {
         action: 'visualizar',
         title: 'Visualizar',
-        icon: '/task-manager-icon.png'
+        icon: '/icons/icon-72x72.png'
       },
       {
         action: 'fechar',
         title: 'Fechar',
-        icon: '/task-manager-icon.png'
+        icon: '/icons/icon-72x72.png'
       }
     ]
   };
@@ -198,8 +208,8 @@ async function verificarTarefasPendentes() {
       const title = 'Lembrete de Tarefas';
       const options = {
         body: 'Não se esqueça de verificar suas tarefas pendentes para hoje',
-        icon: '/task-manager-icon.png',
-        badge: '/task-manager-icon.png',
+        icon: '/icons/icon-192x192.png',
+        badge: '/icons/icon-72x72.png',
         vibrate: [100, 50, 100],
         data: {
           dateOfArrival: Date.now(),
@@ -235,7 +245,7 @@ self.addEventListener('fetch', (event) => {
   if (!event.request.url.startsWith(self.location.origin)) return;
   
   // Estratégia especial para ícones e recursos do PWA
-  if (event.request.url.includes('/task-manager-icon.png') || 
+  if (event.request.url.includes('/icons/') || 
       event.request.url.includes('/manifest.json') || 
       event.request.url.includes('/favicon.ico')) {
     event.respondWith(

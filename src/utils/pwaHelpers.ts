@@ -18,7 +18,7 @@ export async function forcarAtualizacaoIconesPWA(): Promise<boolean> {
           
           // Remover apenas os ícones do cache
           for (const request of requests) {
-            if (request.url.includes('/task-manager-icon.png')) {
+            if (request.url.includes('/icons/') || request.url.includes('/app-icon.png')) {
               await cache.delete(request);
               console.log(`Cache limpo para: ${request.url}`);
             }
@@ -42,6 +42,49 @@ export async function forcarAtualizacaoIconesPWA(): Promise<boolean> {
   }
   
   return false;
+}
+
+/**
+ * Verifica se todos os ícones necessários existem
+ * @returns Promise<boolean> - true se todos os ícones existem
+ */
+export async function verificarIconesPWA(): Promise<{validos: boolean, problemas: string[]}> {
+  const problemas: string[] = [];
+  
+  try {
+    const iconSizes = [72, 96, 128, 144, 152, 192, 384, 512];
+    const icones = iconSizes.map(size => `/icons/icon-${size}x${size}.png`);
+    icones.push('/icons/maskable-icon-512x512.png');
+    
+    for (const icone of icones) {
+      try {
+        const response = await fetch(icone, { cache: 'no-store' });
+        
+        if (!response.ok) {
+          problemas.push(`O ícone ${icone} não foi encontrado (${response.status})`);
+          continue;
+        }
+        
+        // Verificar tamanho do arquivo para detectar placeholders
+        const tamanho = parseInt(response.headers.get('content-length') || '0');
+        if (tamanho < 1500) {
+          problemas.push(`O ícone ${icone} parece ser um placeholder (${tamanho} bytes)`);
+        }
+      } catch (error) {
+        problemas.push(`Erro ao verificar ícone ${icone}: ${error}`);
+      }
+    }
+    
+    return { 
+      validos: problemas.length === 0,
+      problemas
+    };
+  } catch (error) {
+    return { 
+      validos: false, 
+      problemas: [`Erro ao verificar ícones: ${error}`]
+    };
+  }
 }
 
 /**

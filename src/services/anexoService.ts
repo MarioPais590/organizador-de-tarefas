@@ -248,45 +248,61 @@ export const salvarAnexo = async (
       id: anexoData.id
     };
   } catch (error) {
-    console.error("Erro ao processar anexo:", error);
-    return { success: false, message: `Erro desconhecido ao processar anexo "${anexo.nome}"` };
+    console.error("Erro ao salvar anexo:", error);
+    return { 
+      success: false, 
+      message: `Erro desconhecido ao salvar o anexo "${anexo.nome}"` 
+    };
   }
 };
 
 /**
- * Remove um anexo do banco de dados
+ * Remove um anexo do banco de dados e sua vinculação com uma tarefa
  * @param anexoId ID do anexo a ser removido
- * @param tarefaId ID da tarefa associada ao anexo
+ * @param tarefaId ID da tarefa vinculada
  * @param userId ID do usuário
- * @returns true se a operação foi bem-sucedida
+ * @returns Booleano indicando sucesso da operação
  */
-export const removerAnexo = async (
+export const removerAnexoDoBanco = async (
   anexoId: string,
   tarefaId: string,
   userId: string
 ): Promise<boolean> => {
   try {
-    // 1. Remover associação na tabela tarefa_anexos
-    const { error: errorDesvinculo } = await supabase
+    // 1. Verificar se o anexo pertence ao usuário
+    const { data: anexoData, error: anexoError } = await supabase
+      .from('anexos')
+      .select('id')
+      .eq('id', anexoId)
+      .eq('user_id', userId)
+      .single();
+    
+    if (anexoError || !anexoData) {
+      console.error("Erro ao verificar propriedade do anexo:", anexoError);
+      return false;
+    }
+    
+    // 2. Remover vínculo com a tarefa
+    const { error: vinculoError } = await supabase
       .from('tarefa_anexos')
       .delete()
       .eq('anexo_id', anexoId)
       .eq('tarefa_id', tarefaId);
     
-    if (errorDesvinculo) {
-      console.error("Erro ao desvincular anexo:", errorDesvinculo);
+    if (vinculoError) {
+      console.error("Erro ao remover vínculo do anexo:", vinculoError);
       return false;
     }
     
-    // 2. Excluir o anexo da tabela anexos
-    const { error: errorExclusao } = await supabase
+    // 3. Remover o anexo
+    const { error: remocaoError } = await supabase
       .from('anexos')
       .delete()
       .eq('id', anexoId)
       .eq('user_id', userId);
     
-    if (errorExclusao) {
-      console.error("Erro ao excluir anexo:", errorExclusao);
+    if (remocaoError) {
+      console.error("Erro ao remover anexo:", remocaoError);
       return false;
     }
     
@@ -298,16 +314,17 @@ export const removerAnexo = async (
 };
 
 /**
- * Busca os anexos de uma tarefa
+ * Busca todos os anexos associados a uma tarefa
  * @param tarefaId ID da tarefa
- * @returns Array com os anexos da tarefa
+ * @returns Array de anexos da tarefa
  */
 export const buscarAnexosDaTarefa = async (tarefaId: string): Promise<Anexo[]> => {
   try {
-    const { data: anexosData, error } = await supabase
+    const { data, error } = await supabase
       .from('tarefa_anexos')
       .select(`
-        anexos(*)
+        anexo_id,
+        anexos:anexo_id (*)
       `)
       .eq('tarefa_id', tarefaId);
     
@@ -316,9 +333,222 @@ export const buscarAnexosDaTarefa = async (tarefaId: string): Promise<Anexo[]> =
       return [];
     }
     
-    return anexosData ? anexosData.map(item => item.anexos) : [];
+    // Transformar a resposta de uma forma mais segura para tipos
+    if (!data || !Array.isArray(data)) return [];
+    
+    const anexos: Anexo[] = [];
+    for (const item of data) {
+      if (item.anexos && typeof item.anexos === 'object') {
+        anexos.push({
+          id: item.anexos.id || '',
+          nome: item.anexos.nome || '',
+          tipo: item.anexos.tipo || '',
+          conteudo: item.anexos.conteudo || '',
+          url: item.anexos.url
+        });
+      }
+    }
+    
+    return anexos;
   } catch (error) {
     console.error("Erro ao buscar anexos:", error);
     return [];
   }
+};
+
+/**
+ * Gera um ID temporário para anexos
+ */
+export const gerarIdTemporario = (): string => {
+  return 'temp_' + Math.random().toString(36).substring(2, 11);
+};
+
+/**
+ * Processa e comprime imagens para anexos
+ */
+export const processarImagem = async (
+  file: File, 
+  tipo: string, 
+  callback: (anexo: Anexo) => void
+): Promise<void> => {
+  try {
+    const img = new Image();
+    const fileUrl = URL.createObjectURL(file);
+    
+    img.onload = () => {
+      // Criar canvas para redimensionar/comprimir a imagem
+      const canvas = document.createElement('canvas');
+      
+      // Calcular dimensões mantendo proporção
+      let width = img.width;
+      let height = img.height;
+      
+      // Limitar tamanho máximo
+      const MAX_WIDTH = 1200;
+      const MAX_HEIGHT = 1200;
+      
+      if (width > MAX_WIDTH) {
+        height = Math.round((height * MAX_WIDTH) / width);
+        width = MAX_WIDTH;
+      }
+      
+      if (height > MAX_HEIGHT) {
+        width = Math.round((width * MAX_HEIGHT) / height);
+        height = MAX_HEIGHT;
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      
+      // Desenhar imagem redimensionada no canvas
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        throw new Error("Não foi possível criar contexto de canvas para processamento de imagem");
+      }
+      
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // Converter para Base64 com qualidade reduzida
+      const qualidade = 0.85; // 85% de qualidade
+      const base64 = canvas.toDataURL(`image/${tipo === 'jpg' ? 'jpeg' : tipo}`, qualidade);
+      
+      // Criar anexo
+      const novoAnexo: Anexo = {
+        id: gerarIdTemporario(),
+        nome: file.name,
+        tipo: tipo,
+        conteudo: base64,
+        url: fileUrl
+      };
+      
+      callback(novoAnexo);
+    };
+    
+    img.onerror = () => {
+      toast.error("Erro ao carregar imagem. Verifique se o arquivo é válido.");
+      throw new Error("Erro ao carregar imagem para processamento");
+    };
+    
+    img.src = fileUrl;
+  } catch (error) {
+    console.error("Erro ao processar imagem:", error);
+    toast.error("Erro ao processar a imagem. Tente novamente.");
+    throw error;
+  }
+};
+
+/**
+ * Processa arquivos não-imagem para anexos (PDF, TXT, etc.)
+ */
+export const processarArquivo = async (
+  file: File, 
+  tipo: string, 
+  callback: (anexo: Anexo) => void
+): Promise<void> => {
+  try {
+    const fileUrl = URL.createObjectURL(file);
+    const reader = new FileReader();
+    
+    reader.onload = (event) => {
+      if (!event.target || typeof event.target.result !== 'string') {
+        throw new Error("Erro ao ler conteúdo do arquivo");
+      }
+      
+      const base64 = event.target.result;
+      
+      // Criar anexo
+      const novoAnexo: Anexo = {
+        id: gerarIdTemporario(),
+        nome: file.name,
+        tipo: tipo,
+        conteudo: base64,
+        url: fileUrl
+      };
+      
+      callback(novoAnexo);
+    };
+    
+    reader.onerror = () => {
+      toast.error("Erro ao ler arquivo. Verifique se o arquivo é válido.");
+      throw new Error("Erro ao ler arquivo para processamento");
+    };
+    
+    reader.readAsDataURL(file);
+  } catch (error) {
+    console.error("Erro ao processar arquivo:", error);
+    toast.error("Erro ao processar o arquivo. Tente novamente.");
+    throw error;
+  }
+};
+
+/**
+ * Processa qualquer tipo de arquivo para anexo
+ */
+export const processarAnexo = async (
+  file: File, 
+  callback: (anexo: Anexo) => void
+): Promise<void> => {
+  try {
+    // Verificar tamanho máximo (2MB)
+    const fileSize = file.size / 1024 / 1024;
+    if (fileSize > 2) {
+      toast.error("O arquivo é muito grande. O tamanho máximo é de 2MB.");
+      return;
+    }
+    
+    // Verificar extensão do arquivo
+    const extensao = file.name.split('.').pop()?.toLowerCase();
+    if (!extensao || !['png', 'jpg', 'jpeg', 'pdf', 'txt', 'mp3'].includes(extensao)) {
+      toast.error("Tipo de arquivo não suportado. Apenas PNG, JPG, PDF, TXT e MP3 são permitidos.");
+      return;
+    }
+    
+    // Determinar tipo de arquivo pela extensão
+    const tipoAnexo = extensao === 'jpeg' ? 'jpg' : extensao;
+    
+    // Processar baseado no tipo
+    if (tipoAnexo === 'png' || tipoAnexo === 'jpg') {
+      await processarImagem(file, tipoAnexo, callback);
+    } else {
+      await processarArquivo(file, tipoAnexo, callback);
+    }
+  } catch (error) {
+    console.error("Erro ao processar anexo:", error);
+  }
+};
+
+/**
+ * Adiciona um anexo à lista de anexos em memória
+ */
+export const adicionarAnexoEmMemoria = (
+  anexos: Anexo[], 
+  novoAnexo: Anexo
+): Anexo[] => {
+  return [...anexos, novoAnexo];
+};
+
+/**
+ * Atualiza um anexo específico na lista em memória
+ */
+export const atualizarAnexoEmMemoria = (
+  anexos: Anexo[], 
+  anexoId: string, 
+  novoNome: string
+): Anexo[] => {
+  return anexos.map(a => {
+    if (a.id === anexoId) {
+      return { ...a, nome: novoNome };
+    }
+    return a;
+  });
+};
+
+/**
+ * Remove um anexo da lista em memória
+ */
+export const removerAnexoEmMemoria = (
+  anexos: Anexo[], 
+  anexoId: string
+): Anexo[] => {
+  return anexos.filter(a => a.id !== anexoId);
 }; 

@@ -4,16 +4,17 @@ import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import { Anexo } from "@/types";
 import { TarefasTabs } from "@/components/tarefas/TarefasTabs";
 import { NovaTarefaDialog } from "@/components/tarefas/NovaTarefaDialog";
 import { EditarTarefaDialog } from "@/components/tarefas/EditarTarefaDialog";
 import { EditarAnexoDialog } from "@/components/tarefas/EditarAnexoDialog";
 import { DetalhesTarefaDialog } from "@/components/tarefas/DetalhesTarefaDialog";
 import { useNavigate } from "react-router-dom";
+import { useTarefaManager } from "@/hooks/useTarefaManager";
+import { processarAnexo } from "@/services/anexoService";
 
 export default function Tarefas() {
-  const { tarefas, categorias, adicionarTarefa, marcarConcluida, removerTarefa, atualizarTarefa, user, isLoading } = useApp();
+  const { tarefas, categorias, marcarConcluida, removerTarefa, user, isLoading } = useApp();
   const navigate = useNavigate();
   
   // Redirecionar para login se não estiver autenticado
@@ -23,152 +24,63 @@ export default function Tarefas() {
     return null;
   }
   
-  const tarefasPendentes = tarefas.filter(t => !t.concluida);
-  const tarefasConcluidas = tarefas.filter(t => t.concluida);
+  // Usar o hook personalizado para gerenciar tarefas
+  const tarefaManager = useTarefaManager();
   
-  // Estado para nova tarefa
+  // Estados locais
   const [novoTitulo, setNovoTitulo] = useState("");
   const [novaDescricao, setNovaDescricao] = useState("");
   const [novaData, setNovaData] = useState("");
   const [novaHora, setNovaHora] = useState("");
   const [novaCategoria, setNovaCategoria] = useState("");
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("pendentes");
   
-  // Estados para gerenciamento de anexos
-  const [anexos, setAnexos] = useState<Anexo[]>([]);
+  // Filtrar tarefas
+  const tarefasPendentes = tarefas.filter(t => !t.concluida);
+  const tarefasConcluidas = tarefas.filter(t => t.concluida);
   
-  // Estados para edição de anexos
-  const [anexoEditando, setAnexoEditando] = useState<string | null>(null);
-  const [novoNomeAnexo, setNovoNomeAnexo] = useState("");
-  const [dialogAnexoOpen, setDialogAnexoOpen] = useState(false);
-  
-  // Estado para visualização detalhada de tarefa
-  const [tarefaDetalhes, setTarefaDetalhes] = useState<any | null>(null);
-  const [dialogDetalhesOpen, setDialogDetalhesOpen] = useState(false);
-  
-  // Estado para edição de tarefa
-  const [tarefaEditando, setTarefaEditando] = useState<any | null>(null);
-  const [dialogEditarOpen, setDialogEditarOpen] = useState(false);
-
+  // Função para adicionar nova tarefa
   const handleAddTarefa = (notificar: boolean = true) => {
-    if (!novoTitulo || !novaData || !novaCategoria) return;
+    if (!novoTitulo || !novaData || !novaCategoria) {
+      toast.error("Preencha todos os campos obrigatórios");
+      return;
+    }
 
-    const categoria = categorias.find(c => c.id === novaCategoria);
-    if (!categoria) return;
+    console.log("Adicionando tarefa com data:", novaData, "e hora:", novaHora);
 
-    console.log("Adicionando tarefa com data:", novaData, "e hora:", novaHora, "notificar:", notificar);
+    const resultado = tarefaManager.handleAddTarefa(
+      novoTitulo,
+      novaDescricao,
+      novaData,
+      novaHora,
+      novaCategoria,
+      notificar
+    );
 
-    try {
-      // Adicionar tarefa com os dados corretos
-      adicionarTarefa({
-        titulo: novoTitulo,
-        descricao: novaDescricao || undefined,
-        concluida: false,
-        data: novaData,
-        hora: novaHora || undefined,
-        categoria,
-        anexos: anexos,
-        prioridade: 'media',
-        notificar: notificar
-      });
-
+    if (resultado) {
       // Limpar campos
       setNovoTitulo("");
       setNovaDescricao("");
       setNovaData("");
       setNovaHora("");
       setNovaCategoria("");
-      setAnexos([]);
-      setDialogOpen(false);
       
-      toast.success("Tarefa adicionada com sucesso!");
-    } catch (error) {
-      console.error("Erro ao adicionar tarefa:", error);
-      toast.error("Erro ao adicionar tarefa. Tente novamente.");
+      tarefaManager.setDialogOpen(false);
     }
   };
-
-  const abrirEdicaoAnexo = (anexo: Anexo) => {
-    setAnexoEditando(anexo.id);
-    setNovoNomeAnexo(anexo.nome);
-    setDialogAnexoOpen(true);
-  };
   
-  const salvarEdicaoAnexo = () => {
-    if (!anexoEditando || !novoNomeAnexo.trim()) return;
+  // Função para processar arquivo selecionado como anexo
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     
-    setAnexos(anexos.map(a => {
-      if (a.id === anexoEditando) {
-        return { ...a, nome: novoNomeAnexo };
-      }
-      return a;
-    }));
+    const file = files[0];
     
-    setDialogAnexoOpen(false);
-    setAnexoEditando(null);
-    setNovoNomeAnexo("");
-  };
-  
-  const removerAnexoTarefa = (tarefaId: string, anexoId: string) => {
-    const tarefa = tarefas.find(t => t.id === tarefaId);
-    if (!tarefa) return;
-    
-    const novosAnexos = tarefa.anexos ? tarefa.anexos.filter(a => a.id !== anexoId) : [];
-    atualizarTarefa(tarefaId, { anexos: novosAnexos });
-  };
-  
-  const editarAnexoTarefa = (tarefaId: string, anexoId: string, novoNome: string) => {
-    const tarefa = tarefas.find(t => t.id === tarefaId);
-    if (!tarefa || !tarefa.anexos) return;
-    
-    const novosAnexos = tarefa.anexos.map(a => {
-      if (a.id === anexoId) {
-        return { ...a, nome: novoNome };
-      }
-      return a;
+    // Processar o arquivo como anexo
+    processarAnexo(file, (anexo) => {
+      tarefaManager.adicionarAnexoTemp(anexo);
+      e.target.value = ''; // Limpar input para permitir selecionar o mesmo arquivo novamente
     });
-    
-    atualizarTarefa(tarefaId, { anexos: novosAnexos });
-    setDialogAnexoOpen(false);
-    setAnexoEditando(null);
-    setNovoNomeAnexo("");
-  };
-  
-  const abrirDetalhesTarefa = (tarefa: any) => {
-    setTarefaDetalhes(tarefa);
-    setDialogDetalhesOpen(true);
-  };
-  
-  const abrirEditarTarefa = (tarefa: any) => {
-    console.log("Abrindo edição da tarefa:", tarefa);
-    setTarefaEditando(tarefa);
-    setDialogEditarOpen(true);
-  };
-  
-  const salvarEdicaoTarefa = (id: string, tarefaAtualizada: Partial<any>) => {
-    try {
-      console.log("Salvando edição da tarefa:", id, tarefaAtualizada);
-      atualizarTarefa(id, tarefaAtualizada);
-      setDialogEditarOpen(false);
-      setTarefaEditando(null);
-      toast.success("Tarefa atualizada com sucesso!");
-    } catch (error) {
-      console.error("Erro ao atualizar tarefa:", error);
-      toast.error("Erro ao atualizar tarefa. Tente novamente.");
-    }
-  };
-
-  const handleEditarAnexoNoDetalhe = (anexoId: string, nome: string) => {
-    if (!tarefaDetalhes) return;
-    setAnexoEditando(anexoId);
-    setNovoNomeAnexo(nome);
-    setDialogAnexoOpen(true);
-  };
-
-  const handleRemoverAnexoNoDetalhe = (anexoId: string) => {
-    if (!tarefaDetalhes) return;
-    removerAnexoTarefa(tarefaDetalhes.id, anexoId);
   };
 
   // Exibir indicador de carregamento
@@ -187,15 +99,18 @@ export default function Tarefas() {
         description="Gerencie suas tarefas e atividades"
       >
         <div className="flex gap-2 items-center">
-          <Button className="bg-azulPrincipal hover:bg-azulPrincipal/90" onClick={() => setDialogOpen(true)}>
+          <Button 
+            className="bg-azulPrincipal hover:bg-azulPrincipal/90" 
+            onClick={() => tarefaManager.setDialogOpen(true)}
+          >
             <Plus className="mr-2 h-4 w-4" /> Nova Tarefa
           </Button>
         </div>
       </PageHeader>
 
       <NovaTarefaDialog 
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        open={tarefaManager.dialogOpen}
+        onOpenChange={tarefaManager.setDialogOpen}
         categorias={categorias}
         onAddTarefa={handleAddTarefa}
         novoTitulo={novoTitulo}
@@ -208,37 +123,38 @@ export default function Tarefas() {
         setNovaHora={setNovaHora}
         novaCategoria={novaCategoria}
         setNovaCategoria={setNovaCategoria}
-        anexos={anexos}
-        setAnexos={setAnexos}
-        abrirEdicaoAnexo={abrirEdicaoAnexo}
+        anexos={tarefaManager.anexos}
+        setAnexos={tarefaManager.setAnexos}
+        abrirEdicaoAnexo={tarefaManager.abrirEdicaoAnexo}
+        handleFileSelect={handleFileSelect}
       />
       
       <EditarTarefaDialog
-        open={dialogEditarOpen}
-        onOpenChange={setDialogEditarOpen}
-        tarefa={tarefaEditando}
+        open={tarefaManager.dialogEditarOpen}
+        onOpenChange={tarefaManager.setDialogEditarOpen}
+        tarefa={tarefaManager.tarefaEditando}
         categorias={categorias}
-        onSaveChanges={salvarEdicaoTarefa}
-        abrirEdicaoAnexo={abrirEdicaoAnexo}
+        onSaveChanges={tarefaManager.salvarEdicaoTarefa}
+        abrirEdicaoAnexo={tarefaManager.abrirEdicaoAnexo}
       />
       
       <EditarAnexoDialog 
-        open={dialogAnexoOpen}
-        onOpenChange={setDialogAnexoOpen}
-        novoNomeAnexo={novoNomeAnexo}
-        setNovoNomeAnexo={setNovoNomeAnexo}
-        onSalvarEdicao={anexoEditando && tarefaDetalhes 
-          ? () => editarAnexoTarefa(tarefaDetalhes.id, anexoEditando, novoNomeAnexo)
-          : salvarEdicaoAnexo
+        open={tarefaManager.dialogAnexoOpen}
+        onOpenChange={tarefaManager.setDialogAnexoOpen}
+        novoNomeAnexo={tarefaManager.novoNomeAnexo}
+        setNovoNomeAnexo={tarefaManager.setNovoNomeAnexo}
+        onSalvarEdicao={tarefaManager.anexoEditando && tarefaManager.tarefaDetalhes 
+          ? () => tarefaManager.editarAnexoTarefa(tarefaManager.tarefaDetalhes.id, tarefaManager.anexoEditando!, tarefaManager.novoNomeAnexo)
+          : tarefaManager.salvarEdicaoAnexo
         }
       />
       
       <DetalhesTarefaDialog 
-        open={dialogDetalhesOpen}
-        onOpenChange={setDialogDetalhesOpen}
-        tarefa={tarefaDetalhes}
-        onEditarAnexo={handleEditarAnexoNoDetalhe}
-        onRemoverAnexo={handleRemoverAnexoNoDetalhe}
+        open={tarefaManager.dialogDetalhesOpen}
+        onOpenChange={tarefaManager.setDialogDetalhesOpen}
+        tarefa={tarefaManager.tarefaDetalhes}
+        onEditarAnexo={tarefaManager.handleEditarAnexoNoDetalhe}
+        onRemoverAnexo={tarefaManager.handleRemoverAnexoNoDetalhe}
       />
 
       <TarefasTabs 
@@ -248,10 +164,10 @@ export default function Tarefas() {
         tarefasConcluidas={tarefasConcluidas}
         tarefas={tarefas}
         marcarConcluida={marcarConcluida}
-        abrirDetalhesTarefa={abrirDetalhesTarefa}
-        abrirEditarTarefa={abrirEditarTarefa}
+        abrirDetalhesTarefa={tarefaManager.abrirDetalhesTarefa}
+        abrirEditarTarefa={tarefaManager.abrirEditarTarefa}
         removerTarefa={removerTarefa}
-        setDialogOpen={setDialogOpen}
+        setDialogOpen={tarefaManager.setDialogOpen}
       />
     </div>
   );

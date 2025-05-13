@@ -42,6 +42,7 @@ interface NovaTarefaDialogProps {
   anexos: Anexo[];
   setAnexos: (anexos: Anexo[]) => void;
   abrirEdicaoAnexo: (anexo: Anexo) => void;
+  handleFileSelect?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
 export const NovaTarefaDialog = ({
@@ -61,7 +62,8 @@ export const NovaTarefaDialog = ({
   setNovaCategoria,
   anexos,
   setAnexos,
-  abrirEdicaoAnexo
+  abrirEdicaoAnexo,
+  handleFileSelect: externalHandleFileSelect
 }: NovaTarefaDialogProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [date, setDate] = useState<Date | undefined>(novaData ? new Date(novaData) : undefined);
@@ -133,55 +135,8 @@ export const NovaTarefaDialog = ({
     return 'temp_' + Math.random().toString(36).substring(2, 11);
   };
   
-  // Manipular seleção de arquivo
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    
-    const file = files[0];
-    const fileSize = file.size / 1024 / 1024; // tamanho em MB
-    
-    // Limitar tamanho do arquivo (2MB máximo)
-    if (fileSize > 2) {
-      toast.error("O arquivo é muito grande. O tamanho máximo é de 2MB.");
-      e.target.value = '';
-      return;
-    }
-    
-    console.log("Tentando processar arquivo:", file.name, "tipo:", file.type, "tamanho:", fileSize.toFixed(2) + "MB");
-    
-    // Verificar extensão do arquivo - é mais confiável do que MIME type
-    const extensao = file.name.split('.').pop()?.toLowerCase();
-    
-    // Verificar se a extensão é válida
-    if (!extensao || !['png', 'jpg', 'jpeg', 'pdf', 'txt', 'mp3'].includes(extensao)) {
-      toast.error("Tipo de arquivo não suportado. Apenas PNG, JPG, PDF, TXT e MP3 são permitidos.");
-      console.error("Extensão não suportada:", extensao);
-      e.target.value = '';
-      return;
-    }
-    
-    // Determinar tipo de arquivo pela extensão, não pelo MIME type
-    const tipoAnexo = extensao === 'jpeg' ? 'jpg' : extensao;
-    
-    try {
-      // Criar URL para o arquivo
-      const fileUrl = URL.createObjectURL(file);
-      
-      // Processar o arquivo com base no seu tipo
-      if (tipoAnexo === 'png' || tipoAnexo === 'jpg') {
-        // Para imagens, usar compressão
-        processImageFile(file, tipoAnexo, fileUrl, e);
-      } else {
-        // Para outros tipos de arquivo, processar normalmente
-        processRegularFile(file, tipoAnexo, fileUrl, e);
-      }
-    } catch (error) {
-      console.error("Erro ao processar arquivo:", error);
-      toast.error("Erro ao processar o arquivo. Tente novamente.");
-      e.target.value = '';
-    }
-  };
+  // Usar o handler externo se fornecido, caso contrário usar o interno
+  const handleFileSelectFn = externalHandleFileSelect || handleFileSelect;
   
   // Processar arquivo de imagem com compressão
   const processImageFile = (file: File, tipoAnexo: string, fileUrl: string, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -461,8 +416,8 @@ export const NovaTarefaDialog = ({
                 id="anexos"
                 type="file"
                 className="hidden"
-                onChange={handleFileSelect}
-                accept=".png,.jpg,.jpeg,.pdf,.txt,.mp3"
+                onChange={handleFileSelectFn}
+                accept=".jpg,.jpeg,.png,.pdf,.txt,.mp3"
               />
               <Button 
                 type="button" 

@@ -56,3 +56,24 @@ export interface ConfiguracoesNotificacao {
     unidade: 'minutos' | 'horas';
   }
 }
+
+/**
+ * Interface para o evento beforeinstallprompt
+ * Fonte: https://developer.mozilla.org/en-US/docs/Web/API/BeforeInstallPromptEvent
+ */
+export interface BeforeInstallPromptEvent extends Event {
+  /**
+   * Retorna uma promessa que resolve para um objeto contendo
+   * a escolha do usuário
+   */
+  prompt(): Promise<void>;
+  
+  /**
+   * Retorna uma promessa que resolve para um objeto contendo
+   * o resultado da escolha do usuário
+   */
+  userChoice: Promise<{
+    outcome: 'accepted' | 'dismissed';
+    platform: string;
+  }>;
+}
