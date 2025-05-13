@@ -1,14 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <!-- Usaremos a imagem enviada como base para os ícones -->
-  <!-- Este é apenas um placeholder que será substituído pelas imagens reais -->
-  <rect width="512" height="512" fill="#673AB7" rx="256" />
-  <circle cx="256" cy="256" r="100" fill="#2196F3" />
-  <circle cx="256" cy="256" r="60" fill="#FFFFFF" />
-  <circle cx="256" cy="180" r="40" fill="#4CAF50" />
-  <circle cx="180" cy="220" r="40" fill="#4CAF50" />
-  <circle cx="332" cy="220" r="40" fill="#FF5722" />
-  <circle cx="180" cy="332" r="40" fill="#FFC107" />
-  <circle cx="332" cy="332" r="40" fill="#FFC107" />
-  <circle cx="256" cy="380" r="40" fill="#FF5722" />
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Fundo do ícone -->
+  <rect width="512" height="512" rx="128" fill="#3a86ff"/>
+  
+  <!-- Lista de tarefas (representação simples) -->
+  <rect x="128" y="128" width="256" height="256" rx="16" fill="white"/>
+  
+  <!-- Itens da lista -->
+  <rect x="160" y="176" width="192" height="24" rx="8" fill="#e9ecef"/>
+  <rect x="160" y="224" width="192" height="24" rx="8" fill="#e9ecef"/>
+  <rect x="160" y="272" width="192" height="24" rx="8" fill="#e9ecef"/>
+  <rect x="160" y="320" width="128" height="24" rx="8" fill="#e9ecef"/>
+  
+  <!-- Marcadores de conclusão -->
+  <circle cx="384" cy="188" r="12" fill="#4cc9f0"/>
+  <path d="M378 188L382 192L390 184" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <circle cx="384" cy="236" r="12" fill="#4cc9f0"/>
+  <path d="M378 236L382 240L390 232" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <circle cx="384" cy="284" r="12" fill="#f72585"/>
 </svg> 
