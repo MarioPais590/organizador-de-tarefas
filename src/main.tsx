@@ -2,39 +2,48 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
+
+// PWA
+import { configurarCapturaPWA } from './utils/pwaHelpers';
+import { register as registerServiceWorker } from './serviceWorkerRegistration';
+
+// Logging e diagnóstico
+import { appLogger } from './utils/logger';
 import { ErrorLogger } from './utils/errorLogger';
-import { register } from './serviceWorkerRegistration';
 
-// Inicializar o sistema de logging para capturar erros
-ErrorLogger.initialize();
-
-// Registrar o service worker para PWA
-register();
-
-// Garantir que o renderizador espere o DOM estar completamente carregado
-const renderApp = () => {
-  const rootElement = document.getElementById('root');
-  if (!rootElement) {
-    console.error('Elemento root não encontrado, aguardando DOM...');
-    setTimeout(renderApp, 100);
-    return;
+// Função de inicialização
+const initializeApp = () => {
+  appLogger.info('Iniciando a aplicação');
+  
+  // Inicializar o sistema de logging para capturar erros
+  try {
+    appLogger.info('Inicializando sistema de logs de erro');
+    ErrorLogger.initialize();
+    appLogger.info('Sistema de logs inicializado com sucesso');
+  } catch (error) {
+    console.error('Falha ao inicializar o sistema de logs:', error);
   }
 
+  // Inicializar o PWA
   try {
-    ReactDOM.createRoot(rootElement).render(
-      <React.StrictMode>
-        <App />
-      </React.StrictMode>
-    );
-    console.log('Aplicação renderizada com sucesso!');
+    appLogger.info('Configurando captura de eventos PWA');
+    configurarCapturaPWA();
+    appLogger.info('Registrando service worker');
+    registerServiceWorker();
   } catch (error) {
-    console.error('Erro ao renderizar a aplicação:', error);
+    console.error('Falha ao inicializar o PWA:', error);
   }
 };
 
-// Iniciar o renderizador quando o DOM estiver pronto
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', renderApp);
-} else {
-  renderApp();
-}
+// Renderizar a aplicação
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);
+
+// Inicializar a aplicação
+initializeApp();
+
+// Log de inicialização
+console.log('Aplicação inicializada');

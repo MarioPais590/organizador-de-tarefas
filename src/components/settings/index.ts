@@ -1,5 +1,5 @@
 export { AppearanceSettings } from './AppearanceSettings';
-export { NotificationSettings } from './notifications/NotificationSettings';
+export { NotificationSettings } from './NotificationSettings';
 export { DataPrivacySettings } from './DataPrivacySettings';
 export { AboutSection } from './AboutSection';
 export { GeneralSettings } from './GeneralSettings';

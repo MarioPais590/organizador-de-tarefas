@@ -1,291 +1,344 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { 
-  isPWAInstalado, 
-  isIOS, 
-  isSafari, 
-  podeInstalarPWA, 
-  forcarAtualizacaoIconesPWA,
-  verificarIconesPWA 
-} from '@/utils/pwaHelpers';
-import { AlertCircle, CheckCircle2, Download, RefreshCw, Image, Smartphone, AlertTriangle } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { toast } from 'sonner';
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { verificarIconesPWA, forcarAtualizacaoIconesPWA, estaPWAInstalado, solicitarInstalacaoPWA } from '@/utils/pwaHelpers';
+import { 
+  CheckCircle, 
+  XCircle, 
+  AlertCircle, 
+  RefreshCw, 
+  Download, 
+  Info, 
+  Server, 
+  Shield 
+} from 'lucide-react';
+import { unregister } from '@/serviceWorkerRegistration';
+
+export interface PWADiagnosticResult {
+  supported: boolean;
+  installed: boolean;
+  canInstall: boolean;
+  serviceWorker: boolean;
+  manifest: boolean;
+  icons: {
+    valid: boolean;
+    problems: string[];
+  };
+  offline: boolean;
+}
 
 export function PWADiagnostics() {
-  const [isPWA, setIsPWA] = useState<boolean>(false);
-  const [podeInstalar, setPodeInstalar] = useState<boolean>(false);
-  const [isVerificando, setIsVerificando] = useState<boolean>(false);
-  const [serviceWorkerRegistrado, setServiceWorkerRegistrado] = useState(false);
-  const [iconesValidos, setIconesValidos] = useState<boolean | null>(null);
-  const [problemasIcones, setProblemasIcones] = useState<string[]>([]);
-
-  useEffect(() => {
-    verificarStatus();
-  }, []);
-
-  const verificarStatus = async () => {
-    setIsVerificando(true);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<PWADiagnosticResult>({
+    supported: false,
+    installed: false,
+    canInstall: false,
+    serviceWorker: false,
+    manifest: false,
+    icons: {
+      valid: false,
+      problems: []
+    },
+    offline: false
+  });
+  const [installResult, setInstallResult] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  const runDiagnostics = async () => {
+    setLoading(true);
     
-    // Verificar se está instalado como PWA
-    const instalado = isPWAInstalado();
-    setIsPWA(instalado);
-    
-    // Verificar se pode instalar
-    const podeInstalar = podeInstalarPWA();
-    setPodeInstalar(podeInstalar);
-    
-    // Verificar se o service worker está registrado
-    if ('serviceWorker' in navigator) {
-      try {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        setServiceWorkerRegistrado(registrations.length > 0);
-      } catch (error) {
-        console.error('Erro ao verificar service worker:', error);
-        setServiceWorkerRegistrado(false);
-      }
-    }
-    
-    // Verificar ícones
     try {
-      const resultado = await verificarIconesPWA();
-      setIconesValidos(resultado.validos);
-      setProblemasIcones(resultado.problemas);
-    } catch (error) {
-      console.error('Erro ao verificar ícones:', error);
-      setIconesValidos(false);
-      setProblemasIcones([`Erro ao verificar ícones: ${error}`]);
-    }
-    
-    setIsVerificando(false);
-  };
-
-  const forcarAtualizacao = async () => {
-    setIsVerificando(true);
-    toast.info("Atualizando cache e Service Worker...");
-    
-    // Limpar cache
-    if ('caches' in window) {
-      try {
-        const cacheKeys = await caches.keys();
-        for (const cacheKey of cacheKeys) {
-          if (cacheKey.includes('organizador-tarefas')) {
-            await caches.delete(cacheKey);
-            console.log(`Cache limpo: ${cacheKey}`);
-          }
-        }
-      } catch (error) {
-        console.error('Erro ao limpar cache:', error);
-      }
-    }
-    
-    // Atualizar o service worker
-    if ('serviceWorker' in navigator) {
-      try {
+      // Verificar suporte básico
+      const pwaSupported = 'serviceWorker' in navigator;
+      
+      // Verificar se está instalado
+      const isPwaInstalled = estaPWAInstalado();
+      
+      // Verificar se pode ser instalado (deferredPrompt disponível)
+      const canInstallPwa = !!window.deferredPrompt;
+      
+      // Verificar Service Worker
+      let serviceWorkerRegistered = false;
+      if (pwaSupported) {
         const registrations = await navigator.serviceWorker.getRegistrations();
-        for (const registration of registrations) {
-          await registration.update();
-        }
-      } catch (error) {
-        console.error('Erro ao atualizar service worker:', error);
+        serviceWorkerRegistered = registrations.length > 0;
       }
+      
+      // Verificar manifest
+      let manifestValid = false;
+      try {
+        const response = await fetch('/manifest.json');
+        manifestValid = response.ok;
+      } catch (error) {
+        console.error('[PWA] Erro ao verificar manifest:', error);
+      }
+      
+      // Verificar ícones
+      const iconResult = await verificarIconesPWA();
+      
+      // Verificar suporte offline
+      let offlineSupported = false;
+      if ('caches' in window) {
+        const caches = await window.caches.keys();
+        offlineSupported = caches.length > 0;
+      }
+      
+      setStatus({
+        supported: pwaSupported,
+        installed: isPwaInstalled,
+        canInstall: canInstallPwa,
+        serviceWorker: serviceWorkerRegistered,
+        manifest: manifestValid,
+        icons: {
+          valid: iconResult.validos,
+          problems: iconResult.problemas
+        },
+        offline: offlineSupported
+      });
+    } catch (error) {
+      console.error('[PWA] Erro durante diagnóstico:', error);
+    } finally {
+      setLoading(false);
     }
-    
-    await verificarStatus();
-    
-    toast.success("Cache e Service Worker atualizados! A página será recarregada em alguns segundos.");
-    
-    // Recarregar a página para aplicar as alterações após 2 segundos
-    setTimeout(() => {
-      window.location.reload();
-    }, 2000);
   };
-
+  
+  useEffect(() => {
+    runDiagnostics();
+  }, []);
+  
+  const refreshIcons = async () => {
+    setRefreshing(true);
+    try {
+      await forcarAtualizacaoIconesPWA();
+      // O componente será recarregado pela função forcarAtualizacaoIconesPWA
+    } catch (error) {
+      console.error('[PWA] Erro ao atualizar ícones:', error);
+      setRefreshing(false);
+    }
+  };
+  
+  const installPwa = async () => {
+    try {
+      const result = await solicitarInstalacaoPWA();
+      setInstallResult(result);
+      
+      if (result === 'accepted') {
+        // Atualizar o status após a instalação bem-sucedida
+        setTimeout(() => {
+          runDiagnostics();
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('[PWA] Erro ao solicitar instalação:', error);
+      setInstallResult('error');
+    }
+  };
+  
+  const resetServiceWorker = async () => {
+    try {
+      await unregister();
+      // Recarregar a página para aplicar as alterações
+      window.location.reload();
+    } catch (error) {
+      console.error('[PWA] Erro ao resetar service worker:', error);
+    }
+  };
+  
+  const StatusIcon = ({ condition }: { condition: boolean }) => (
+    condition ? 
+      <CheckCircle className="h-5 w-5 text-green-500" /> : 
+      <XCircle className="h-5 w-5 text-red-500" />
+  );
+  
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-2">
+          <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-blue-600"></div>
+          <p className="text-sm text-muted-foreground">Verificando status do PWA...</p>
+        </div>
+      </div>
+    );
+  }
+  
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Smartphone className="h-5 w-5" /> Diagnóstico PWA
-        </CardTitle>
-        <CardDescription>
-          Verifique o status da instalação do aplicativo como PWA
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-4">
-          <div className="flex items-center justify-between">
-            <span>Status do PWA:</span>
-            <span className={`flex items-center gap-1 ${isPWA ? 'text-green-500' : 'text-amber-500'}`}>
-              {isPWA ? (
-                <>
-                  <CheckCircle2 className="h-4 w-4" /> Instalado como PWA
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="h-4 w-4" /> Não instalado como PWA
-                </>
-              )}
-            </span>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <span>Pode instalar:</span>
-            <span className={`flex items-center gap-1 ${podeInstalar ? 'text-green-500' : 'text-red-500'}`}>
-              {podeInstalar ? (
-                <>
-                  <CheckCircle2 className="h-4 w-4" /> Sim
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="h-4 w-4" /> Não
-                </>
-              )}
-            </span>
-          </div>
-          
-          <div className="flex justify-between items-center">
-            <span>Service Worker:</span>
-            {serviceWorkerRegistrado ? (
-              <Badge variant="outline" className="bg-green-500 text-white">Registrado</Badge>
-            ) : (
-              <Badge variant="destructive">Não registrado</Badge>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-6">
+        {/* Status Geral */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-medium">Status do PWA</h3>
+            {!status.supported && (
+              <Badge variant="destructive">Não suportado</Badge>
+            )}
+            {status.supported && !status.installed && (
+              <Badge variant="outline">Não instalado</Badge>
+            )}
+            {status.installed && (
+              <Badge variant="secondary">Instalado</Badge>
             )}
           </div>
           
-          <div className="flex justify-between items-center">
-            <span>Ícones PWA:</span>
-            {iconesValidos === null ? (
-              <Badge variant="outline">Verificando...</Badge>
-            ) : iconesValidos ? (
-              <Badge variant="outline" className="bg-green-500 text-white">Válidos</Badge>
-            ) : (
-              <Badge variant="destructive">Problemas encontrados</Badge>
+          <div className="grid gap-2 md:grid-cols-2">
+            <Card>
+              <CardHeader className="p-4">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Server className="h-4 w-4" />
+                  Suporte Técnico
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-2 pt-0">
+                <ul className="space-y-2 text-sm">
+                  <li className="flex items-center justify-between">
+                    <span>PWA Suportado:</span>
+                    <StatusIcon condition={status.supported} />
+                  </li>
+                  <li className="flex items-center justify-between">
+                    <span>Service Worker:</span>
+                    <StatusIcon condition={status.serviceWorker} />
+                  </li>
+                  <li className="flex items-center justify-between">
+                    <span>Manifesto:</span>
+                    <StatusIcon condition={status.manifest} />
+                  </li>
+                  <li className="flex items-center justify-between">
+                    <span>Ícones:</span>
+                    <StatusIcon condition={status.icons.valid} />
+                  </li>
+                </ul>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="p-4">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Status de Instalação
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-2 pt-0">
+                <ul className="space-y-2 text-sm">
+                  <li className="flex items-center justify-between">
+                    <span>Aplicativo Instalado:</span>
+                    <StatusIcon condition={status.installed} />
+                  </li>
+                  <li className="flex items-center justify-between">
+                    <span>Pode Instalar:</span>
+                    <StatusIcon condition={status.canInstall} />
+                  </li>
+                  <li className="flex items-center justify-between">
+                    <span>Suporte Offline:</span>
+                    <StatusIcon condition={status.offline} />
+                  </li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+        
+        {/* Ações */}
+        <div>
+          <h3 className="mb-2 text-lg font-medium">Ações</h3>
+          <div className="flex flex-wrap gap-2">
+            {status.canInstall && (
+              <Button onClick={installPwa}>
+                <Download className="mr-2 h-4 w-4" />
+                Instalar aplicativo
+              </Button>
             )}
+            <Button variant="outline" onClick={refreshIcons} disabled={refreshing}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Atualizando...' : 'Atualizar ícones'}
+            </Button>
+            <Button variant="outline" onClick={resetServiceWorker}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Reiniciar Service Worker
+            </Button>
+            <Button variant="outline" onClick={runDiagnostics}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Verificar novamente
+            </Button>
           </div>
           
-          <div className="flex justify-between items-center">
-            <span>Dispositivo iOS:</span>
-            <Badge variant={isIOS() ? "default" : "outline"}>
-              {isIOS() ? "Sim" : "Não"}
-            </Badge>
-          </div>
-          
-          <div className="flex justify-between items-center">
-            <span>Navegador Safari:</span>
-            <Badge variant={isSafari() ? "default" : "outline"}>
-              {isSafari() ? "Sim" : "Não"}
-            </Badge>
-          </div>
-        </div>
-        
-        {!isPWA && podeInstalar && (
-          <Alert>
-            <Download className="h-4 w-4" />
-            <AlertTitle>PWA disponível</AlertTitle>
-            <AlertDescription>
-              Este aplicativo pode ser instalado como PWA. 
-              Procure pelo botão de instalação no navegador.
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        {!serviceWorkerRegistrado && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Service Worker não registrado</AlertTitle>
-            <AlertDescription>
-              O Service Worker não está registrado. O aplicativo não poderá ser instalado sem um Service Worker.
-              Recarregue a página para tentar registrá-lo novamente.
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        {!iconesValidos && problemasIcones.length > 0 && (
-          <Alert variant="default">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Problemas com ícones encontrados</AlertTitle>
-            <AlertDescription>
-              <p className="mb-2">Os ícones do PWA apresentam problemas:</p>
-              <ul className="list-disc pl-5 text-sm">
-                {problemasIcones.slice(0, 3).map((problema, idx) => (
-                  <li key={idx}>{problema}</li>
-                ))}
-                {problemasIcones.length > 3 && (
-                  <li>...e mais {problemasIcones.length - 3} problemas</li>
-                )}
-              </ul>
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        <div className="mt-4">
-          <h3 className="text-lg font-medium mb-2">Visualização do ícone</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col items-center">
-              <h4 className="text-sm font-medium mb-1">Ícone Padrão</h4>
-              <img 
-                src={`/icons/icon-192x192.png?v=${Date.now()}`} 
-                alt="Ícone padrão" 
-                className="border rounded-md"
-                width={96}
-                height={96}
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWFsZXJ0LWNpcmNsZSI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiLz48bGluZSB4MT0iMTIiIHkxPSI4IiB4Mj0iMTIiIHkyPSIxMiIvPjxsaW5lIHgxPSIxMiIgeTE9IjE2IiB4Mj0iMTIuMDEiIHkyPSIxNiIvPjwvc3ZnPg==';
-                }}
-              />
-            </div>
-            <div className="flex flex-col items-center">
-              <h4 className="text-sm font-medium mb-1">Ícone Maskable</h4>
-              <img 
-                src={`/icons/maskable-icon-512x512.png?v=${Date.now()}`} 
-                alt="Ícone maskable" 
-                className="border rounded-md"
-                width={96}
-                height={96}
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGNsYXNzPSJsdWNpZGUgbHVjaWRlLWFsZXJ0LWNpcmNsZSI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiLz48bGluZSB4MT0iMTIiIHkxPSI4IiB4Mj0iMTIiIHkyPSIxMiIvPjxsaW5lIHgxPSIxMiIgeTE9IjE2IiB4Mj0iMTIuMDEiIHkyPSIxNiIvPjwvc3ZnPg==';
-                }}
-              />
-            </div>
-          </div>
-          
-          <div className="mt-4 text-sm text-muted-foreground">
-            <p>Se os ícones não aparecerem ou mostrarem o ícone da Vercel, você pode precisar:</p>
-            <ol className="list-decimal pl-5 mt-1 mb-2">
-              <li>Substituir os arquivos de ícone em <code>/public/icons/</code></li>
-              <li>Limpar o cache do navegador</li>
-              <li>Clicar em "Forçar atualização" abaixo</li>
-            </ol>
-          </div>
-        </div>
-      </CardContent>
-      <CardFooter className="flex flex-wrap gap-2">
-        <Button 
-          variant="outline" 
-          onClick={verificarStatus} 
-          disabled={isVerificando}
-        >
-          {isVerificando ? (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Verificando
-            </>
-          ) : (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4" /> Verificar
-            </>
+          {installResult && (
+            <Alert className="mt-4" variant={installResult === 'accepted' ? 'default' : 'destructive'}>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Resultado da instalação</AlertTitle>
+              <AlertDescription>
+                {installResult === 'accepted' && 'Aplicativo instalado com sucesso!'}
+                {installResult === 'dismissed' && 'Instalação cancelada pelo usuário.'}
+                {installResult === 'unavailable' && 'Não é possível instalar no momento.'}
+                {installResult === 'error' && 'Erro ao tentar instalar.'}
+              </AlertDescription>
+            </Alert>
           )}
-        </Button>
+        </div>
         
-        <Button 
-          variant="default" 
-          onClick={forcarAtualizacao} 
-          disabled={isVerificando}
-        >
-          <RefreshCw className="mr-2 h-4 w-4" /> Forçar atualização
-        </Button>
-      </CardFooter>
-    </Card>
+        {/* Detalhes e Problemas */}
+        {(!status.icons.valid || status.icons.problems.length > 0) && (
+          <Card>
+            <CardHeader className="p-4">
+              <CardTitle className="text-base">Problemas com Ícones</CardTitle>
+              <CardDescription>
+                Alguns ícones do PWA estão faltando ou são inacessíveis.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-4 pb-2 pt-0">
+              <ul className="space-y-1 text-sm">
+                {status.icons.problems.map((problem, index) => (
+                  <li key={index} className="text-red-500 flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <span>{problem}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+            <CardFooter className="p-4 pt-2">
+              <Button variant="outline" size="sm" onClick={refreshIcons}>
+                <RefreshCw className="mr-2 h-3 w-3" />
+                Atualizar ícones
+              </Button>
+            </CardFooter>
+          </Card>
+        )}
+        
+        {/* Informações */}
+        <div>
+          <h3 className="mb-2 text-lg font-medium flex items-center gap-2">
+            <Info className="h-4 w-4" />
+            Informações
+          </h3>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground mb-4">
+                Um Progressive Web App (PWA) permite que o aplicativo seja instalado no dispositivo, 
+                oferecendo uma experiência semelhante a um aplicativo nativo com acesso offline.
+              </p>
+              
+              <Separator className="my-4" />
+              
+              <h4 className="text-sm font-medium mb-2">O que fazer se tiver problemas?</h4>
+              <ul className="text-sm space-y-2">
+                <li className="flex gap-2">
+                  <RefreshCw className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>Atualize os ícones se estiverem faltando ou corrompidos.</span>
+                </li>
+                <li className="flex gap-2">
+                  <RefreshCw className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>Reinicie o Service Worker se o aplicativo não estiver funcionando corretamente.</span>
+                </li>
+                <li className="flex gap-2">
+                  <RefreshCw className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>Limpe o cache do navegador se enfrentar problemas persistentes.</span>
+                </li>
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
   );
 } 

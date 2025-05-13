@@ -1,3 +1,5 @@
+import { logger } from './logger';
+
 // Utilitário para capturar e registrar erros na aplicação
 const isBrowser = typeof window !== 'undefined';
 
@@ -8,6 +10,9 @@ const originalConsole = isBrowser ? { ...console } : null;
 let errorLogs: string[] = [];
 let warnLogs: string[] = [];
 let infoLogs: string[] = [];
+
+// Logger dedicado para errors
+const errorLogger = logger.createNamespace('Error');
 
 /**
  * Inicializa captura de erros global
@@ -20,7 +25,7 @@ export const initializeErrorLogging = () => {
     window.addEventListener('error', (event) => {
       const errorMsg = `ERRO GLOBAL: ${event.message} em ${event.filename}:${event.lineno}:${event.colno}`;
       errorLogs.push(errorMsg);
-      console.error(errorMsg);
+      errorLogger.error(errorMsg);
       
       // Salvar logs no localStorage para diagnóstico
       localStorage.setItem('app_error_logs', JSON.stringify(errorLogs));
@@ -31,7 +36,7 @@ export const initializeErrorLogging = () => {
     window.addEventListener('unhandledrejection', (event) => {
       const errorMsg = `PROMESSA NÃO TRATADA: ${event.reason}`;
       errorLogs.push(errorMsg);
-      console.error(errorMsg);
+      errorLogger.error(errorMsg);
       
       // Salvar logs no localStorage para diagnóstico
       localStorage.setItem('app_error_logs', JSON.stringify(errorLogs));
@@ -80,10 +85,10 @@ export const initializeErrorLogging = () => {
       if (savedInfoLogs) infoLogs = JSON.parse(savedInfoLogs);
     } catch (e) {
       // Ignorar erros ao carregar logs
-      console.error("Erro ao carregar logs do localStorage:", e);
+      errorLogger.error("Erro ao carregar logs do localStorage:", e);
     }
 
-    console.info('Sistema de logging de erros inicializado com sucesso');
+    errorLogger.info('Sistema de logging de erros inicializado com sucesso');
   } catch (error) {
     // Se não conseguir configurar o logger, apenas log o erro
     if (originalConsole) {
@@ -96,10 +101,19 @@ export const initializeErrorLogging = () => {
  * Obtém os logs de erro para diagnóstico
  */
 export const getErrorLogs = () => {
+  // Adicionar também os logs capturados pelo nosso logger centralizado
+  const loggerErrorHistory = logger.getHistory('error').map(entry => 
+    `${new Date(entry.timestamp).toISOString()} - ${entry.message}`
+  );
+  
   return {
-    errors: [...errorLogs],
-    warnings: [...warnLogs],
-    info: [...infoLogs]
+    errors: [...errorLogs, ...loggerErrorHistory],
+    warnings: [...warnLogs, ...logger.getHistory('warn').map(entry => 
+      `${new Date(entry.timestamp).toISOString()} - ${entry.message}`
+    )],
+    info: [...infoLogs, ...logger.getHistory('info').map(entry => 
+      `${new Date(entry.timestamp).toISOString()} - ${entry.message}`
+    )]
   };
 };
 
@@ -111,6 +125,9 @@ export const clearLogs = () => {
   warnLogs = [];
   infoLogs = [];
   
+  // Limpar logs do logger centralizado
+  logger.clearHistory();
+  
   if (isBrowser) {
     try {
       localStorage.removeItem('app_error_logs');
@@ -118,6 +135,7 @@ export const clearLogs = () => {
       localStorage.removeItem('app_info_logs');
     } catch (e) {
       // Ignorar erros ao limpar logs
+      errorLogger.error("Erro ao limpar logs do localStorage:", e);
     }
   }
 };

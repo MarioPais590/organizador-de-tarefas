@@ -30,33 +30,47 @@ export default function Configuracoes() {
     <div className="animate-in">
       <PageHeader 
         title="Configurações" 
-        description="Personalize o funcionamento do aplicativo" 
+        description="Gerencie as configurações do aplicativo"
       />
 
-      <div className="grid gap-6">
-        <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid grid-cols-5 mb-4">
-            <TabsTrigger value="general">Geral</TabsTrigger>
-            <TabsTrigger value="appearance">Aparência</TabsTrigger>
-            <TabsTrigger value="notifications">Notificações</TabsTrigger>
-            <TabsTrigger value="database">Dados</TabsTrigger>
-            <TabsTrigger value="pwa">PWA</TabsTrigger>
+      <Tabs defaultValue="geral" className="mt-6">
+        <TabsList className="mb-6 flex h-auto w-full flex-wrap justify-start gap-2 bg-transparent p-0">
+          <TabsTrigger value="geral" className="h-9">
+            Geral
+          </TabsTrigger>
+          <TabsTrigger value="aparencia" className="h-9">
+            Aparência
+          </TabsTrigger>
+          <TabsTrigger value="notificacoes" className="h-9">
+            Notificações
+          </TabsTrigger>
+          <TabsTrigger value="privacidade" className="h-9">
+            Privacidade
+          </TabsTrigger>
+          <TabsTrigger value="banco" className="h-9">
+            Banco de Dados
+          </TabsTrigger>
+          <TabsTrigger value="aplicativo" className="h-9">
+            Aplicativo
+          </TabsTrigger>
+          <TabsTrigger value="sobre" className="h-9">
+            Sobre
+          </TabsTrigger>
           </TabsList>
           
-          <TabsContent value="general" className="space-y-4">
+        <TabsContent value="geral" className="mt-0 border-0 p-0">
             <GeneralSettings />
           </TabsContent>
           
-          <TabsContent value="appearance" className="space-y-4">
+        <TabsContent value="aparencia" className="mt-0 border-0 p-0">
             <AppearanceSettings />
           </TabsContent>
           
-          <TabsContent value="notifications" className="space-y-4">
+        <TabsContent value="notificacoes" className="mt-0 border-0 p-0">
             <NotificationSettings 
               configNotificacoes={configNotificacoes} 
               atualizarConfigNotificacoes={atualizarConfigNotificacoes} 
             />
-            
             {isDevelopment && (
               <DebugNotifications 
                 tarefas={tarefas}
@@ -65,15 +79,7 @@ export default function Configuracoes() {
             )}
           </TabsContent>
           
-          <TabsContent value="database" className="space-y-4">
-            <DatabaseSettings />
-          </TabsContent>
-          
-          <TabsContent value="pwa" className="space-y-4">
-            <PWADiagnostics />
-          </TabsContent>
-        </Tabs>
-        
+        <TabsContent value="privacidade" className="mt-0 border-0 p-0">
         <DataPrivacySettings
           perfil={perfil}
           categorias={categorias}
@@ -81,9 +87,20 @@ export default function Configuracoes() {
           rotinas={rotinas}
           limparTodosDados={limparTodosDados}
         />
+        </TabsContent>
         
+        <TabsContent value="banco" className="mt-0 border-0 p-0">
+          <DatabaseSettings />
+        </TabsContent>
+        
+        <TabsContent value="aplicativo" className="mt-0 border-0 p-0">
+          <PWADiagnostics />
+        </TabsContent>
+        
+        <TabsContent value="sobre" className="mt-0 border-0 p-0">
         <AboutSection />
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

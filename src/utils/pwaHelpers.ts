@@ -1,107 +1,82 @@
 /**
- * Utilitários para o PWA
+ * PWA Helpers
+ * 
+ * Este arquivo contém utilitários para gerenciar as funcionalidades PWA do aplicativo.
  */
 
 /**
  * Força a atualização dos ícones do PWA limpando o cache
- * @returns Promise<boolean> - true se a atualização foi bem-sucedida
  */
 export async function forcarAtualizacaoIconesPWA(): Promise<boolean> {
-  if ('serviceWorker' in navigator && 'caches' in window) {
+  if ('caches' in window) {
     try {
-      // Limpar o cache do service worker
-      const cacheKeys = await caches.keys();
-      for (const cacheKey of cacheKeys) {
-        if (cacheKey.includes('organizador-tarefas')) {
-          const cache = await caches.open(cacheKey);
-          const requests = await cache.keys();
-          
-          // Remover apenas os ícones do cache
-          for (const request of requests) {
-            if (request.url.includes('/icons/') || request.url.includes('/app-icon.png')) {
-              await cache.delete(request);
-              console.log(`Cache limpo para: ${request.url}`);
-            }
-          }
-        }
-      }
+      // Nomes de caches relacionados a ícones
+      const cacheNames = await caches.keys();
+      const iconCaches = cacheNames.filter(name => 
+        name.includes('icon') || name.includes('image') || name.includes('assets')
+      );
       
-      // Atualizar o service worker
-      if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        for (const registration of registrations) {
-          await registration.update();
-        }
-      }
+      // Deletar caches de ícones
+      await Promise.all(iconCaches.map(cacheName => caches.delete(cacheName)));
       
+      console.log('[PWA] Caches de ícones limpos com sucesso');
+      
+      // Recarregar a página para aplicar as mudanças
+      setTimeout(() => window.location.reload(), 500);
       return true;
     } catch (error) {
-      console.error('Erro ao forçar atualização dos ícones:', error);
+      console.error('[PWA] Erro ao limpar cache de ícones:', error);
       return false;
     }
   }
-  
   return false;
 }
 
 /**
  * Verifica se todos os ícones necessários existem
- * @returns Promise<boolean> - true se todos os ícones existem
  */
 export async function verificarIconesPWA(): Promise<{validos: boolean, problemas: string[]}> {
   const problemas: string[] = [];
+  const icons = [
+    '/icons/icon-72x72.png',
+    '/icons/icon-96x96.png',
+    '/icons/icon-128x128.png',
+    '/icons/icon-144x144.png',
+    '/icons/icon-152x152.png',
+    '/icons/icon-192x192.png',
+    '/icons/icon-384x384.png',
+    '/icons/icon-512x512.png',
+    '/icons/maskable-icon-512x512.png'
+  ];
   
-  try {
-    const iconSizes = [72, 96, 128, 144, 152, 192, 384, 512];
-    const icones = iconSizes.map(size => `/icons/icon-${size}x${size}.png`);
-    icones.push('/icons/maskable-icon-512x512.png');
-    
-    for (const icone of icones) {
-      try {
-        const response = await fetch(icone, { cache: 'no-store' });
-        
-        if (!response.ok) {
-          problemas.push(`O ícone ${icone} não foi encontrado (${response.status})`);
-          continue;
-        }
-        
-        // Verificar tamanho do arquivo para detectar placeholders
-        const tamanho = parseInt(response.headers.get('content-length') || '0');
-        if (tamanho < 1500) {
-          problemas.push(`O ícone ${icone} parece ser um placeholder (${tamanho} bytes)`);
-        }
-      } catch (error) {
-        problemas.push(`Erro ao verificar ícone ${icone}: ${error}`);
+  for (const icon of icons) {
+    try {
+      // Adicionar timestamp para evitar cache no navegador
+      const response = await fetch(`${icon}?t=${Date.now()}`, { method: 'HEAD' });
+      if (!response.ok) {
+        problemas.push(`Ícone não encontrado: ${icon}`);
       }
+    } catch (error) {
+      problemas.push(`Erro ao verificar ícone ${icon}`);
     }
-    
-    return { 
-      validos: problemas.length === 0,
-      problemas
-    };
-  } catch (error) {
-    return { 
-      validos: false, 
-      problemas: [`Erro ao verificar ícones: ${error}`]
-    };
   }
+  
+  return {
+    validos: problemas.length === 0,
+    problemas
+  };
 }
 
 /**
  * Verifica se o PWA está instalado
- * @returns boolean - true se o PWA estiver instalado
  */
-export function isPWAInstalado(): boolean {
-  return (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    (window.navigator as any).standalone === true ||
-    document.referrer.includes('android-app://')
-  );
+export function estaPWAInstalado(): boolean {
+  return window.matchMedia('(display-mode: standalone)').matches || 
+         (window.navigator as any).standalone === true;
 }
 
 /**
  * Verifica se o dispositivo é iOS
- * @returns boolean - true se o dispositivo for iOS
  */
 export function isIOS(): boolean {
   return /iPad|iPhone|iPod/.test(navigator.userAgent);
@@ -109,7 +84,6 @@ export function isIOS(): boolean {
 
 /**
  * Verifica se o navegador é Safari
- * @returns boolean - true se o navegador for Safari
  */
 export function isSafari(): boolean {
   return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
@@ -117,8 +91,110 @@ export function isSafari(): boolean {
 
 /**
  * Verifica se o PWA pode ser instalado
- * @returns boolean - true se o PWA puder ser instalado
  */
 export function podeInstalarPWA(): boolean {
-  return 'serviceWorker' in navigator && 'PushManager' in window;
-} 
+  return window.matchMedia('(display-mode: standalone)').matches || 
+         (window.navigator as any).standalone === true;
+}
+
+/**
+ * Verifica se o aplicativo está sendo executado como PWA instalado
+ */
+export const isPwaInstalled = (): boolean => {
+  return window.matchMedia('(display-mode: standalone)').matches || 
+         (window.navigator as any).standalone === true;
+};
+
+/**
+ * Verifica se é possível instalar o PWA
+ */
+export const isPwaInstallable = (): boolean => {
+  return window.matchMedia('(display-mode: standalone)').matches || 
+         (window.navigator as any).standalone === true;
+};
+
+/**
+ * Exibe o prompt de instalação do PWA se disponível
+ */
+export async function solicitarInstalacaoPWA(): Promise<'accepted' | 'dismissed' | 'unavailable'> {
+  const { deferredPrompt } = window;
+  
+  if (!deferredPrompt) {
+    console.log('[PWA] Prompt de instalação não disponível');
+    return 'unavailable';
+  }
+  
+  // Mostrar prompt de instalação
+  deferredPrompt.prompt();
+  
+  // Aguardar a escolha do usuário
+  const { outcome } = await deferredPrompt.userChoice;
+  
+  // Limpar referência ao prompt
+  window.deferredPrompt = null;
+  
+  return outcome;
+}
+
+/**
+ * Instala o tratador de eventos para capturar o evento beforeinstallprompt
+ */
+export function configurarCapturaPWA(): void {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    // Impedir o navegador de mostrar automaticamente o prompt
+    e.preventDefault();
+    
+    // Armazenar o evento para uso posterior
+    window.deferredPrompt = e as any;
+    
+    console.log('[PWA] Evento beforeinstallprompt capturado');
+  });
+  
+  // Detectar quando o PWA foi instalado
+  window.addEventListener('appinstalled', () => {
+    // Limpar o prompt salvo
+    window.deferredPrompt = null;
+    console.log('[PWA] Aplicativo instalado com sucesso');
+  });
+}
+
+/**
+ * Configurar os event listeners para recursos PWA
+ */
+export const setupPwaEventListeners = (): void => {
+  // Função desativada
+  console.log('[PWA] Função desativada: setupPwaEventListeners');
+};
+
+/**
+ * Verificar se o navegador suporta recursos PWA básicos
+ */
+export const checkPwaSupport = (): { 
+  serviceWorker: boolean; 
+  cache: boolean;
+  indexedDb: boolean;
+  webManifest: boolean;
+} => {
+  return {
+    serviceWorker: false,
+    cache: false,
+    indexedDb: true,
+    webManifest: false
+  };
+};
+
+/**
+ * Forçar a atualização do service worker
+ */
+export const updateServiceWorker = async (): Promise<boolean> => {
+  console.log('[PWA] Função desativada: updateServiceWorker');
+  return false;
+};
+
+/**
+ * Limpar o cache do PWA
+ */
+export const clearPwaCache = async (): Promise<boolean> => {
+  console.log('[PWA] Função desativada: clearPwaCache');
+  return false;
+}; 

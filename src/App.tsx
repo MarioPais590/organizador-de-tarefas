@@ -1,19 +1,24 @@
 import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Layout } from "@/components/Layout";
+import { AuthGuard } from "./components/AuthGuard";
+import { getErrorLogs } from "@/utils/errorLogger";
+import { appLogger } from "@/utils/logger";
+
+// Providers
 import { AuthProvider } from "@/context/AuthContext";
 import { TaskProvider } from "@/context/TaskContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { AppProvider } from "@/context/AppContext";
-import { Layout } from "@/components/Layout";
-import { getErrorLogs } from "@/utils/errorLogger";
 
 // Pages
 import Index from "./pages/Index";
+import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Tarefas from "./pages/Tarefas";
 import Rotinas from "./pages/Rotinas";
@@ -22,12 +27,21 @@ import Categorias from "./pages/Categorias";
 import Perfil from "./pages/Perfil";
 import Configuracoes from "./pages/Configuracoes";
 import NotFound from "./pages/NotFound";
-import Login from "./pages/Login";
+import DiagnosticPage from "./pages/DiagnosticPage";
 
-// Componente que verifica autenticação
-import { AuthGuard } from "./components/AuthGuard";
+// Constantes e configurações
+const LOADING_DELAY_MS = 800; // Tempo de exibição mínimo para a tela de carregamento
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false, 
+      staleTime: 5 * 60 * 1000, // 5 minutos
+    },
+  }
+});
 
-// Componente ErrorBoundary para capturar erros em componentes filhos
+// Componente de Error Boundary
 interface ErrorBoundaryProps {
   children: ReactNode;
 }
@@ -51,13 +65,12 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   static getDerivedStateFromError(error: Error) {
-    // Atualiza o estado para que a próxima renderização mostre a UI alternativa
+    appLogger.error('Erro capturado pelo ErrorBoundary:', error.message);
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Você também pode registrar o erro em um serviço de relatório de erros
-    console.error("Erro capturado pela ErrorBoundary:", error, errorInfo);
+    appLogger.error("Detalhes do erro:", error, errorInfo);
     this.setState({ 
       errorInfo,
       errorLogs: getErrorLogs()
@@ -89,6 +102,16 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
             >
               Recarregar Aplicativo
             </button>
+            <button
+              onClick={() => {
+                localStorage.clear();
+                sessionStorage.clear();
+                window.location.reload();
+              }}
+              className="w-full px-4 py-2 mb-4 text-white bg-gray-600 rounded hover:bg-gray-700 transition-colors"
+            >
+              Limpar Cache e Recarregar
+            </button>
             {errorLogs.length > 0 && (
               <details className="mt-4">
                 <summary className="cursor-pointer text-sm text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
@@ -112,28 +135,33 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
-const queryClient = new QueryClient();
+// Componente de carregamento
+const LoadingScreen = () => (
+  <div className="flex justify-center items-center h-screen bg-white dark:bg-gray-900">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+  </div>
+);
 
-const App = () => {
+// Componente principal do aplicativo
+const App: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   
+  // Simular tempo de carregamento para evitar flashes de UI
   useEffect(() => {
-    // Simular verificação de inicialização
     const timer = setTimeout(() => {
       setIsInitialized(true);
-    }, 500);
+    }, LOADING_DELAY_MS);
     
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+    };
   }, []);
   
+  // Mostrar tela de carregamento enquanto inicializa
   if (!isInitialized) {
-    return (
-      <div className="flex justify-center items-center h-screen bg-white dark:bg-gray-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
-
+  
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -147,78 +175,70 @@ const App = () => {
                     <Sonner />
                     <BrowserRouter>
                       <Routes>
+                        {/* Rotas públicas */}
                         <Route path="/" element={<Index />} />
                         <Route path="/login" element={<Login />} />
-                        <Route 
-                          path="/dashboard" 
-                          element={
-                            <Layout>
-                              <AuthGuard>
-                                <Dashboard />
-                              </AuthGuard>
-                            </Layout>
-                          } 
-                        />
-                        <Route 
-                          path="/tarefas" 
-                          element={
-                            <Layout>
-                              <AuthGuard>
-                                <Tarefas />
-                              </AuthGuard>
-                            </Layout>
-                          } 
-                        />
-                        <Route 
-                          path="/rotinas" 
-                          element={
-                            <Layout>
-                              <AuthGuard>
-                                <Rotinas />
-                              </AuthGuard>
-                            </Layout>
-                          } 
-                        />
-                        <Route 
-                          path="/calendario" 
-                          element={
-                            <Layout>
-                              <AuthGuard>
-                                <Calendario />
-                              </AuthGuard>
-                            </Layout>
-                          } 
-                        />
-                        <Route 
-                          path="/categorias" 
-                          element={
-                            <Layout>
-                              <AuthGuard>
-                                <Categorias />
-                              </AuthGuard>
-                            </Layout>
-                          } 
-                        />
-                        <Route 
-                          path="/perfil" 
-                          element={
-                            <Layout>
-                              <AuthGuard>
-                                <Perfil />
-                              </AuthGuard>
-                            </Layout>
-                          } 
-                        />
-                        <Route 
-                          path="/configuracoes" 
-                          element={
-                            <Layout>
-                              <AuthGuard>
-                                <Configuracoes />
-                              </AuthGuard>
-                            </Layout>
-                          } 
-                        />
+                        
+                        {/* Rotas privadas com layout padrão */}
+                        <Route path="/dashboard" element={
+                          <Layout>
+                            <AuthGuard>
+                              <Dashboard />
+                            </AuthGuard>
+                          </Layout>
+                        } />
+                        
+                        <Route path="/tarefas" element={
+                          <Layout>
+                            <AuthGuard>
+                              <Tarefas />
+                            </AuthGuard>
+                          </Layout>
+                        } />
+                        
+                        <Route path="/rotinas" element={
+                          <Layout>
+                            <AuthGuard>
+                              <Rotinas />
+                            </AuthGuard>
+                          </Layout>
+                        } />
+                        
+                        <Route path="/calendario" element={
+                          <Layout>
+                            <AuthGuard>
+                              <Calendario />
+                            </AuthGuard>
+                          </Layout>
+                        } />
+                        
+                        <Route path="/categorias" element={
+                          <Layout>
+                            <AuthGuard>
+                              <Categorias />
+                            </AuthGuard>
+                          </Layout>
+                        } />
+                        
+                        <Route path="/perfil" element={
+                          <Layout>
+                            <AuthGuard>
+                              <Perfil />
+                            </AuthGuard>
+                          </Layout>
+                        } />
+                        
+                        <Route path="/configuracoes" element={
+                          <Layout>
+                            <AuthGuard>
+                              <Configuracoes />
+                            </AuthGuard>
+                          </Layout>
+                        } />
+                        
+                        <Route path="/diagnostico" element={<DiagnosticPage />} />
+                        
+                        {/* Rota 404 */}
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </BrowserRouter>

@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Diagnóstico de Tela Branca</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f9f9f9;
+    }
+    h1, h2 {
+      color: #2563eb;
+    }
+    pre {
+      background-color: #272822;
+      color: #f8f8f2;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    button {
+      background-color: #2563eb;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+      font-size: 14px;
+    }
+    button:hover {
+      background-color: #1d4ed8;
+    }
+    #results {
+      margin-top: 20px;
+      padding: 15px;
+      background-color: #fff;
+      border-radius: 4px;
+      border: 1px solid #e5e7eb;
+    }
+    .error {
+      color: #ef4444;
+    }
+    .success {
+      color: #10b981;
+    }
+    details {
+      margin: 10px 0;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+    }
+    summary {
+      padding: 10px;
+      background-color: #f3f4f6;
+      cursor: pointer;
+    }
+    details div {
+      padding: 10px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin: 20px 0;
+    }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+  <h1>Diagnóstico - Organizador de Tarefas</h1>
+  <p>Esta página vai ajudar a identificar e corrigir problemas com o aplicativo.</p>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Ações Rápidas</h2>
+      <button id="goto-app">Ir para o Aplicativo</button>
+      <button id="check-app">Verificar Aplicativo</button>
+      <button id="clear-cache">Limpar Cache</button>
+      <button id="reset-service-worker">Reiniciar Service Worker</button>
+    </div>
+    
+    <div class="card">
+      <h2>Informações do Sistema</h2>
+      <div id="system-info">Carregando...</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Status de Armazenamento</h2>
+    <div id="storage-info">Carregando...</div>
+  </div>
+
+  <div id="results">
+    <p>Selecione uma ação acima para começar o diagnóstico.</p>
+  </div>
+
+  <script>
+    // Mostrar informações do sistema
+    function displaySystemInfo() {
+      const systemInfoDiv = document.getElementById('system-info');
+      
+      const info = {
+        userAgent: navigator.userAgent,
+        language: navigator.language,
+        cookiesEnabled: navigator.cookieEnabled,
+        serviceWorkerSupport: 'serviceWorker' in navigator,
+        cacheSupport: 'caches' in window,
+        online: navigator.onlineOffline || "unknown"
+      };
+
+      systemInfoDiv.innerHTML = `
+        <ul>
+          <li><strong>Navegador:</strong> ${getBrowserInfo()}</li>
+          <li><strong>Service Worker:</strong> ${info.serviceWorkerSupport ? 'Suportado' : 'Não suportado'}</li>
+          <li><strong>Cache API:</strong> ${info.cacheSupport ? 'Suportada' : 'Não suportada'}</li>
+          <li><strong>Cookies:</strong> ${info.cookiesEnabled ? 'Habilitados' : 'Desabilitados'}</li>
+          <li><strong>Idioma:</strong> ${info.language}</li>
+        </ul>
+      `;
+    }
+
+    // Obter informações sobre o navegador
+    function getBrowserInfo() {
+      const userAgent = navigator.userAgent;
+      let browserName = "Desconhecido";
+
+      if (userAgent.match(/chrome|chromium|crios/i)) {
+        browserName = "Chrome";
+      } else if (userAgent.match(/firefox|fxios/i)) {
+        browserName = "Firefox";
+      } else if (userAgent.match(/safari/i)) {
+        browserName = "Safari";
+      } else if (userAgent.match(/opr\//i)) {
+        browserName = "Opera";
+      } else if (userAgent.match(/edg/i)) {
+        browserName = "Edge";
+      }
+
+      return browserName;
+    }
+
+    // Verificar armazenamento
+    async function checkStorage() {
+      const storageInfoDiv = document.getElementById('storage-info');
+      
+      try {
+        // Verificar localStorage
+        let localStorageSize = 0;
+        let localStorageItems = 0;
+        
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key) {
+              const value = localStorage.getItem(key) || '';
+              localStorageSize += key.length + value.length;
+              localStorageItems++;
+            }
+          }
+        } catch (error) {
+          console.error('Erro ao acessar localStorage:', error);
+        }
+
+        // Verificar sessionStorage
+        let sessionStorageSize = 0;
+        let sessionStorageItems = 0;
+        
+        try {
+          for (let i = 0; i < sessionStorage.length; i++) {
+            const key = sessionStorage.key(i);
+            if (key) {
+              const value = sessionStorage.getItem(key) || '';
+              sessionStorageSize += key.length + value.length;
+              sessionStorageItems++;
+            }
+          }
+        } catch (error) {
+          console.error('Erro ao acessar sessionStorage:', error);
+        }
+
+        // Verificar caches
+        let cacheNames = [];
+        let cacheCount = 0;
+        
+        if ('caches' in window) {
+          try {
+            cacheNames = await caches.keys();
+            cacheCount = cacheNames.length;
+          } catch (error) {
+            console.error('Erro ao acessar caches:', error);
+          }
+        }
+
+        storageInfoDiv.innerHTML = `
+          <ul>
+            <li><strong>localStorage:</strong> ${localStorageItems} itens (${formatBytes(localStorageSize)})</li>
+            <li><strong>sessionStorage:</strong> ${sessionStorageItems} itens (${formatBytes(sessionStorageSize)})</li>
+            <li><strong>Cache API:</strong> ${cacheCount} caches${cacheCount > 0 ? ' (' + cacheNames.join(', ') + ')' : ''}</li>
+          </ul>
+        `;
+      } catch (error) {
+        storageInfoDiv.innerHTML = `<p class="error">Erro ao verificar armazenamento: ${error.message}</p>`;
+      }
+    }
+
+    // Formatar bytes para exibição
+    function formatBytes(bytes, decimals = 2) {
+      if (bytes === 0) return '0 Bytes';
+      
+      const k = 1024;
+      const dm = decimals < 0 ? 0 : decimals;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+      
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    }
+
+    // Verificar o status do aplicativo
+    async function checkApp() {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '<p>Verificando o aplicativo...</p>';
+      
+      try {
+        // Verificar manifesto
+        let manifestStatus = 'Não verificado';
+        try {
+          const manifestResponse = await fetch('/manifest.json');
+          manifestStatus = manifestResponse.ok ? 'OK' : 'Não encontrado';
+        } catch (error) {
+          manifestStatus = `Erro: ${error.message}`;
+        }
+
+        // Verificar service worker
+        let swStatus = 'Não suportado';
+        let swRegistrations = [];
+        
+        if ('serviceWorker' in navigator) {
+          try {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            swStatus = registrations.length > 0 ? 'Registrado' : 'Não registrado';
+            swRegistrations = registrations.map(reg => reg.scope);
+          } catch (error) {
+            swStatus = `Erro: ${error.message}`;
+          }
+        }
+
+        // Checar ícones
+        let iconsStatus = [];
+        const iconPaths = [
+          '/icons/icon-72x72.png',
+          '/icons/icon-96x96.png',
+          '/icons/icon-128x128.png',
+          '/icons/icon-144x144.png',
+          '/icons/icon-152x152.png',
+          '/icons/icon-192x192.png',
+          '/icons/icon-384x384.png',
+          '/icons/icon-512x512.png',
+          '/icons/maskable-icon-512x512.png'
+        ];
+
+        for (const path of iconPaths) {
+          try {
+            const response = await fetch(path, { method: 'HEAD' });
+            iconsStatus.push({
+              path,
+              status: response.ok ? 'OK' : 'Não encontrado'
+            });
+          } catch (error) {
+            iconsStatus.push({
+              path,
+              status: `Erro: ${error.message}`
+            });
+          }
+        }
+
+        // Verificar recursos principais do app
+        let mainJsStatus = 'Não verificado';
+        try {
+          const mainJsResponse = await fetch('/src/main.tsx');
+          mainJsStatus = mainJsResponse.ok ? 'OK' : 'Não encontrado';
+        } catch (error) {
+          mainJsStatus = `Erro: ${error.message}`;
+        }
+
+        // Exibir resultados
+        resultsDiv.innerHTML = `
+          <h2>Diagnóstico do Aplicativo</h2>
+          
+          <details>
+            <summary>Manifesto PWA: <span class="${manifestStatus === 'OK' ? 'success' : 'error'}">${manifestStatus}</span></summary>
+            <div>
+              ${manifestStatus === 'OK' ? 
+                '<p>Manifesto PWA encontrado corretamente.</p>' : 
+                '<p class="error">Problema com o manifesto PWA. Isso pode impedir a instalação do aplicativo.</p>'}
+            </div>
+          </details>
+          
+          <details>
+            <summary>Service Worker: <span class="${swStatus === 'Registrado' ? 'success' : 'error'}">${swStatus}</span></summary>
+            <div>
+              ${swRegistrations.length > 0 ? 
+                `<p>Service Workers registrados (${swRegistrations.length}):</p>
+                 <ul>${swRegistrations.map(scope => `<li>${scope}</li>`).join('')}</ul>` : 
+                '<p class="error">Nenhum Service Worker registrado. Isso pode impedir o funcionamento offline e recursos PWA.</p>'}
+            </div>
+          </details>
+          
+          <details>
+            <summary>Ícones PWA: <span class="${iconsStatus.every(icon => icon.status === 'OK') ? 'success' : 'error'}">${iconsStatus.filter(icon => icon.status === 'OK').length}/${iconsStatus.length} encontrados</span></summary>
+            <div>
+              <ul>
+                ${iconsStatus.map(icon => 
+                  `<li>${icon.path}: <span class="${icon.status === 'OK' ? 'success' : 'error'}">${icon.status}</span></li>`
+                ).join('')}
+              </ul>
+            </div>
+          </details>
+          
+          <details>
+            <summary>Recursos Principais: <span class="${mainJsStatus === 'OK' ? 'success' : 'error'}">${mainJsStatus}</span></summary>
+            <div>
+              <p>main.tsx: <span class="${mainJsStatus === 'OK' ? 'success' : 'error'}">${mainJsStatus}</span></p>
+            </div>
+          </details>
+          
+          <h3>Recomendações:</h3>
+          <ul>
+            ${manifestStatus !== 'OK' ? '<li>Corrigir o manifesto PWA</li>' : ''}
+            ${swStatus !== 'Registrado' ? '<li>Verificar a configuração do Service Worker</li>' : ''}
+            ${!iconsStatus.every(icon => icon.status === 'OK') ? '<li>Verificar os ícones PWA ausentes</li>' : ''}
+            ${mainJsStatus !== 'OK' ? '<li>Verificar o arquivo main.tsx</li>' : ''}
+            <li>Limpar o cache e os dados armazenados usando os botões acima</li>
+          </ul>
+        `;
+      } catch (error) {
+        resultsDiv.innerHTML = `
+          <h2>Diagnóstico do Aplicativo</h2>
+          <p class="error">Erro durante o diagnóstico: ${error.message}</p>
+        `;
+      }
+    }
+
+    // Limpar o cache
+    async function clearCache() {
+      const resultsDiv = document.getElementById('results');
+      resultsDiv.innerHTML = '<p>Limpando cache...</p>';
+      
+      try {
+        // Limpar localStorage
+        localStorage.clear();
+        
+        // Limpar sessionStorage
+        sessionStorage.clear();
+        
+        // Limpar caches
+        if ('caches' in window) {
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map(cacheName => {
+            return caches.delete(cacheName);
+          }));
+        }
+
+        resultsDiv.innerHTML = `
+          <h2>Limpeza de Cache</h2>
+          <p class="success">Cache limpo com sucesso!</p>
+          <p>Agora tente acessar o aplicativo novamente.</p>
+        `;
+      } catch (error) {
+        resultsDiv.innerHTML = `
+          <h2>Limpeza de Cache</h2>
+          <p class="error">Erro ao limpar cache: ${error.message}</p>
+        `;
+      }
+    }
+
+    // Função para reiniciar o service worker
+    async function resetServiceWorker() {
+      const resultsDiv = document.getElementById('results');
+      
+      if (!('serviceWorker' in navigator)) {
+        resultsDiv.innerHTML = `
+          <h2>Reiniciar Service Worker</h2>
+          <p class="error">Este navegador não suporta Service Workers.</p>
+        `;
+        return;
+      }
+
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+
+        if (registrations.length === 0) {
+          resultsDiv.innerHTML = `
+            <h2>Reiniciar Service Worker</h2>
+            <p>Nenhum Service Worker registrado para desregistrar.</p>
+          `;
+          return;
+        }
+
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (const registration of registrations) {
+          try {
+            const success = await registration.unregister();
+            if (success) {
+              successCount++;
+            } else {
+              errorCount++;
+            }
+          } catch (error) {
+            errorCount++;
+          }
+        }
+
+        resultsDiv.innerHTML = `
+          <h2>Reiniciar Service Worker</h2>
+          <p>${successCount} Service Worker(s) desregistrado(s) com sucesso.</p>
+          ${errorCount > 0 ? `<p class="error">${errorCount} erro(s) encontrado(s).</p>` : ''}
+          <p>É recomendado recarregar o navegador para que as alterações tenham efeito.</p>
+          <button onclick="window.location.reload()">Recarregar Página</button>
+        `;
+      } catch (error) {
+        resultsDiv.innerHTML = `
+          <h2>Reiniciar Service Worker</h2>
+          <p class="error">Erro ao reiniciar Service Worker: ${error.message}</p>
+        `;
+      }
+    }
+
+    // Inicializar
+    document.addEventListener('DOMContentLoaded', () => {
+      displaySystemInfo();
+      checkStorage();
+
+      // Adicionar event listeners aos botões
+      document.getElementById('check-app').addEventListener('click', checkApp);
+      document.getElementById('clear-cache').addEventListener('click', clearCache);
+      document.getElementById('reset-service-worker').addEventListener('click', resetServiceWorker);
+
+      document.getElementById('goto-app').addEventListener('click', () => {
+        window.location.href = '/';
+      });
+    });
+  </script>
+</body>
+</html> 

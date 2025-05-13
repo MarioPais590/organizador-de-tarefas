@@ -1,4 +1,3 @@
-
 import { useTheme } from "@/components/theme-provider";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -32,4 +31,4 @@ export function AppearanceSettings() {
       </CardContent>
     </Card>
   );
-}
+} 

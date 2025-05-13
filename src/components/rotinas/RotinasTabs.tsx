@@ -1,4 +1,3 @@
-
 import { RepeatIcon, Clock, Calendar } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Rotina } from "@/types";
@@ -32,24 +31,26 @@ export const RotinasTabs = ({
       onValueChange={onTabChange}
       className="mb-8"
     >
-      <TabsList>
-        <TabsTrigger value="todas" className="flex items-center gap-2">
-          <RepeatIcon className="h-4 w-4" /> 
-          Todas ({rotinas.length})
-        </TabsTrigger>
-        <TabsTrigger value="diarias" className="flex items-center gap-2">
-          <Clock className="h-4 w-4" /> 
-          Diárias ({rotinaDiaria.length})
-        </TabsTrigger>
-        <TabsTrigger value="semanais" className="flex items-center gap-2">
-          <Calendar className="h-4 w-4" /> 
-          Semanais ({rotinasSemanal.length})
-        </TabsTrigger>
-        <TabsTrigger value="mensais" className="flex items-center gap-2">
-          <Calendar className="h-4 w-4" /> 
-          Mensais ({rotinasMenual.length})
-        </TabsTrigger>
-      </TabsList>
+      <div className="w-full overflow-x-auto pb-2">
+        <TabsList className="w-full flex flex-nowrap justify-start md:justify-center">
+          <TabsTrigger value="todas" className="flex items-center gap-2 whitespace-nowrap">
+            <RepeatIcon className="h-4 w-4" /> 
+            Todas ({rotinas.length})
+          </TabsTrigger>
+          <TabsTrigger value="diarias" className="flex items-center gap-2 whitespace-nowrap">
+            <Clock className="h-4 w-4" /> 
+            Diárias ({rotinaDiaria.length})
+          </TabsTrigger>
+          <TabsTrigger value="semanais" className="flex items-center gap-2 whitespace-nowrap">
+            <Calendar className="h-4 w-4" /> 
+            Semanais ({rotinasSemanal.length})
+          </TabsTrigger>
+          <TabsTrigger value="mensais" className="flex items-center gap-2 whitespace-nowrap">
+            <Calendar className="h-4 w-4" /> 
+            Mensais ({rotinasMenual.length})
+          </TabsTrigger>
+        </TabsList>
+      </div>
       
       <TabsContent value="todas">
         <RotinasList 

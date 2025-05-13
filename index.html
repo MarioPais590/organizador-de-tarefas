@@ -7,40 +7,20 @@
     <meta name="description" content="Aplicativo pessoal de organização de tarefas" />
     <meta name="author" content="Lovable" />
 
-    <!-- Favicon e ícones para PWA -->
-    <link rel="icon" type="image/png" href="/icons/icon-192x192.png" />
-    <link rel="shortcut icon" href="/icons/icon-192x192.png" type="image/png" />
-    
-    <!-- PWA Meta Tags -->
+    <!-- PWA metadados -->
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#3a86ff" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="application-name" content="Organizador de Tarefas" />
-    
-    <!-- iOS Meta Tags -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Organizador de Tarefas" />
     
-    <!-- Ícones para iOS -->
+    <!-- Favicon e ícones para dispositivos -->
+    <link rel="icon" type="image/png" href="/icons/icon-192x192.png" />
+    <link rel="shortcut icon" href="/icons/icon-192x192.png" type="image/png" />
     <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
     <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
     <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-152x152.png" />
-    
-    <!-- Microsoft Tiles -->
-    <meta name="msapplication-TileColor" content="#3a86ff" />
-    <meta name="msapplication-TileImage" content="/icons/icon-144x144.png" />
-    
-    <!-- Open Graph Tags -->
-    <meta property="og:title" content="Organizador de Tarefas" />
-    <meta property="og:description" content="Aplicativo pessoal de organização de tarefas" />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="/icons/icon-512x512.png" />
-
-    <!-- Twitter Tags -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="/icons/icon-512x512.png" />
   </head>
 
   <body>
@@ -49,37 +29,11 @@
     <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
     <script type="module" src="/src/main.tsx"></script>
     
-    <!-- Script para melhorar a detecção de instalação do PWA -->
-    <script>
-      // Verificar se o navegador suporta a API de instalação de PWA
-      window.addEventListener('beforeinstallprompt', (e) => {
-        // Prevenir o comportamento padrão do Chrome
-        e.preventDefault();
-        // Armazenar o evento para usar depois
-        window.deferredPrompt = e;
-        // Opcionalmente, mostrar um botão de instalação personalizado
-        console.log('PWA está disponível para instalação');
-      });
-      
-      // Detectar quando o PWA foi instalado
-      window.addEventListener('appinstalled', () => {
-        // Limpar o prompt armazenado
-        window.deferredPrompt = null;
-        console.log('PWA foi instalado com sucesso');
-      });
-
-      // Registrar o service worker explicitamente
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-              console.log('Service Worker registrado com sucesso:', registration.scope);
-            })
-            .catch(error => {
-              console.error('Erro ao registrar o Service Worker:', error);
-            });
-        });
-      }
-    </script>
+    <!-- Fallback para navegadores que não suportam Service Workers -->
+    <noscript>
+      <div style="padding: 20px; text-align: center;">
+        Este aplicativo requer JavaScript para funcionar corretamente.
+      </div>
+    </noscript>
   </body>
 </html>
