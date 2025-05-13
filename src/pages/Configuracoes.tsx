@@ -40,7 +40,7 @@ export default function Configuracoes() {
             <TabsTrigger value="appearance">Aparência</TabsTrigger>
             <TabsTrigger value="notifications">Notificações</TabsTrigger>
             <TabsTrigger value="database">Dados</TabsTrigger>
-            <TabsTrigger value="pwa">Aplicativo</TabsTrigger>
+            <TabsTrigger value="pwa">PWA</TabsTrigger>
           </TabsList>
           
           <TabsContent value="general" className="space-y-4">

@@ -3,122 +3,152 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { verificarIconesPWA, isPWAInstalado, isIOS, isSafari, podeInstalarPWA, forcarAtualizacaoIconesPWA, verificarIconesDiferentes } from '@/utils/pwaHelpers';
-import { AlertCircle, CheckCircle, Download, RefreshCw, Image, Upload } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Download, RefreshCw, Image, Smartphone } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export function PWADiagnostics() {
-  const [iconesSaoValidos, setIconesSaoValidos] = useState<boolean | null>(null);
-  const [iconesSaoReais, setIconesSaoReais] = useState<boolean | null>(null);
-  const [instalado, setInstalado] = useState(false);
-  const [podeInstalar, setPodeInstalar] = useState(false);
-  const [isChecking, setIsChecking] = useState(false);
-  const [isUpdatingIcons, setIsUpdatingIcons] = useState(false);
+  const [iconeStatus, setIconeStatus] = useState<'verificando' | 'ok' | 'erro'>('verificando');
+  const [iconesReais, setIconesReais] = useState<boolean | null>(null);
+  const [isPWA, setIsPWA] = useState<boolean>(false);
+  const [podeInstalar, setPodeInstalar] = useState<boolean>(false);
+  const [isVerificando, setIsVerificando] = useState<boolean>(false);
   const [serviceWorkerRegistrado, setServiceWorkerRegistrado] = useState(false);
 
   useEffect(() => {
-    checkPWAStatus();
+    verificarStatus();
   }, []);
 
-  const checkPWAStatus = async () => {
-    setIsChecking(true);
+  const verificarStatus = async () => {
+    setIsVerificando(true);
     
-    // Verificar se o PWA está instalado
-    const pwaInstalado = isPWAInstalado();
-    setInstalado(pwaInstalado);
+    // Verificar se está instalado como PWA
+    const instalado = isPWAInstalado();
+    setIsPWA(instalado);
     
-    // Verificar se o PWA pode ser instalado
-    setPodeInstalar(podeInstalarPWA());
+    // Verificar se pode instalar
+    const podeInstalar = podeInstalarPWA();
+    setPodeInstalar(podeInstalar);
     
-    // Verificar se os ícones são válidos
-    const icones = await verificarIconesPWA();
-    setIconesSaoValidos(icones);
+    // Verificar ícones
+    const iconesCarregados = await verificarIconesPWA();
+    setIconeStatus(iconesCarregados ? 'ok' : 'erro');
     
-    // Verificar se os ícones são reais (não são placeholders)
-    const iconesReais = await verificarIconesDiferentes();
-    setIconesSaoReais(iconesReais);
+    // Verificar se os ícones são reais ou placeholders
+    const saoReais = await verificarIconesDiferentes();
+    setIconesReais(saoReais);
     
     // Verificar se o service worker está registrado
     if ('serviceWorker' in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      setServiceWorkerRegistrado(registrations.length > 0);
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        setServiceWorkerRegistrado(registrations.length > 0);
+      } catch (error) {
+        console.error('Erro ao verificar service worker:', error);
+        setServiceWorkerRegistrado(false);
+      }
     }
     
-    setIsChecking(false);
+    setIsVerificando(false);
   };
 
-  const handleRefresh = () => {
-    checkPWAStatus();
-  };
-  
-  const handleUpdateIcons = async () => {
-    setIsUpdatingIcons(true);
-    
-    try {
-      // Forçar a atualização dos ícones
-      const resultado = await forcarAtualizacaoIconesPWA();
-      
-      if (resultado) {
-        alert('Ícones atualizados com sucesso! Recarregue a página para ver as alterações.');
-      } else {
-        alert('Não foi possível atualizar todos os ícones. Verifique o console para mais detalhes.');
-      }
-      
-      // Verificar novamente o status
-      await checkPWAStatus();
-    } catch (error) {
-      console.error('Erro ao atualizar ícones:', error);
-      alert('Ocorreu um erro ao tentar atualizar os ícones.');
-    } finally {
-      setIsUpdatingIcons(false);
-    }
+  const forcarAtualizacao = async () => {
+    setIsVerificando(true);
+    await forcarAtualizacaoIconesPWA();
+    await verificarStatus();
   };
 
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle>Diagnóstico do PWA</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <Smartphone className="h-5 w-5" /> Diagnóstico PWA
+        </CardTitle>
         <CardDescription>
-          Verifique o status da instalação do aplicativo
+          Verifique o status da instalação do aplicativo como PWA
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-col gap-2">
-          <div className="flex justify-between items-center">
-            <span>Status de instalação:</span>
-            {instalado ? (
-              <Badge variant="default" className="bg-green-500 text-white">Instalado</Badge>
-            ) : (
-              <Badge variant="outline">Não instalado</Badge>
-            )}
+        <div className="grid gap-4">
+          <div className="flex items-center justify-between">
+            <span>Status do PWA:</span>
+            <span className={`flex items-center gap-1 ${isPWA ? 'text-green-500' : 'text-amber-500'}`}>
+              {isPWA ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4" /> Instalado como PWA
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="h-4 w-4" /> Não instalado como PWA
+                </>
+              )}
+            </span>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <span>Pode instalar:</span>
+            <span className={`flex items-center gap-1 ${podeInstalar ? 'text-green-500' : 'text-red-500'}`}>
+              {podeInstalar ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4" /> Sim
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="h-4 w-4" /> Não
+                </>
+              )}
+            </span>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <span>Status dos ícones:</span>
+            <span className={`flex items-center gap-1 ${
+              iconeStatus === 'ok' ? 'text-green-500' : 
+              iconeStatus === 'erro' ? 'text-red-500' : 'text-amber-500'
+            }`}>
+              {iconeStatus === 'ok' ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4" /> Carregados
+                </>
+              ) : iconeStatus === 'erro' ? (
+                <>
+                  <AlertCircle className="h-4 w-4" /> Erro
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" /> Verificando
+                </>
+              )}
+            </span>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <span>Ícones reais:</span>
+            <span className={`flex items-center gap-1 ${
+              iconesReais === true ? 'text-green-500' : 
+              iconesReais === false ? 'text-red-500' : 'text-amber-500'
+            }`}>
+              {iconesReais === true ? (
+                <>
+                  <CheckCircle2 className="h-4 w-4" /> Sim
+                </>
+              ) : iconesReais === false ? (
+                <>
+                  <AlertCircle className="h-4 w-4" /> Não (placeholders)
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" /> Verificando
+                </>
+              )}
+            </span>
           </div>
           
           <div className="flex justify-between items-center">
             <span>Service Worker:</span>
             {serviceWorkerRegistrado ? (
-              <Badge variant="default" className="bg-green-500 text-white">Registrado</Badge>
+              <Badge variant="outline" className="bg-green-500 text-white">Registrado</Badge>
             ) : (
               <Badge variant="destructive">Não registrado</Badge>
-            )}
-          </div>
-          
-          <div className="flex justify-between items-center">
-            <span>Ícones do PWA:</span>
-            {iconesSaoValidos === null ? (
-              <Badge variant="outline">Verificando...</Badge>
-            ) : iconesSaoValidos ? (
-              <Badge variant="default" className="bg-green-500 text-white">Válidos</Badge>
-            ) : (
-              <Badge variant="destructive">Problemas encontrados</Badge>
-            )}
-          </div>
-          
-          <div className="flex justify-between items-center">
-            <span>Ícones são reais:</span>
-            {iconesSaoReais === null ? (
-              <Badge variant="outline">Verificando...</Badge>
-            ) : iconesSaoReais ? (
-              <Badge variant="default" className="bg-green-500 text-white">Sim</Badge>
-            ) : (
-              <Badge variant="destructive">Não (possíveis placeholders)</Badge>
             )}
           </div>
           
@@ -135,63 +165,39 @@ export function PWADiagnostics() {
               {isSafari() ? "Sim" : "Não"}
             </Badge>
           </div>
-          
-          <div className="flex justify-between items-center">
-            <span>Pode ser instalado:</span>
-            {podeInstalar ? (
-              <Badge variant="default" className="bg-green-500 text-white">Sim</Badge>
-            ) : (
-              <Badge variant="destructive">Não</Badge>
-            )}
-          </div>
         </div>
         
-        {!iconesSaoValidos && iconesSaoValidos !== null && (
-          <div className="flex items-center gap-2 p-3 bg-yellow-100 text-yellow-800 rounded-md">
-            <AlertCircle size={18} />
-            <p className="text-sm">
-              Foram detectados problemas com os ícones do PWA. Isso pode impedir a instalação correta do aplicativo.
-              Tente usar o botão "Atualizar ícones" abaixo.
-            </p>
-          </div>
+        {iconesReais === false && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Problema com ícones</AlertTitle>
+            <AlertDescription>
+              Os ícones do PWA parecem ser placeholders ou estão corrompidos. 
+              Substitua-os por ícones reais para que o PWA funcione corretamente.
+            </AlertDescription>
+          </Alert>
         )}
         
-        {!iconesSaoReais && iconesSaoReais !== null && (
-          <div className="flex items-center gap-2 p-3 bg-red-100 text-red-800 rounded-md">
-            <AlertCircle size={18} />
-            <p className="text-sm">
-              Os ícones do PWA parecem ser placeholders ou estão corrompidos. Isso explica por que o ícone da Vercel está sendo usado em vez do seu ícone personalizado.
-              Você precisa substituir os ícones na pasta public/icons por ícones reais com os tamanhos corretos.
-            </p>
-          </div>
+        {!isPWA && podeInstalar && (
+          <Alert>
+            <Download className="h-4 w-4" />
+            <AlertTitle>PWA disponível</AlertTitle>
+            <AlertDescription>
+              Este aplicativo pode ser instalado como PWA. 
+              Procure pelo botão de instalação no navegador.
+            </AlertDescription>
+          </Alert>
         )}
         
         {!serviceWorkerRegistrado && (
-          <div className="flex items-center gap-2 p-3 bg-red-100 text-red-800 rounded-md">
-            <AlertCircle size={18} />
-            <p className="text-sm">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Service Worker não registrado</AlertTitle>
+            <AlertDescription>
               O Service Worker não está registrado. O aplicativo não poderá ser instalado sem um Service Worker.
               Recarregue a página para tentar registrá-lo novamente.
-            </p>
-          </div>
-        )}
-        
-        {podeInstalar && !instalado && (
-          <div className="flex items-center gap-2 p-3 bg-green-100 text-green-800 rounded-md">
-            <CheckCircle size={18} />
-            <p className="text-sm">
-              Este aplicativo pode ser instalado como um PWA. Procure pelo botão de instalação no canto superior direito da tela.
-            </p>
-          </div>
-        )}
-        
-        {isIOS() && !instalado && (
-          <div className="flex items-center gap-2 p-3 bg-blue-100 text-blue-800 rounded-md">
-            <AlertCircle size={18} />
-            <p className="text-sm">
-              No iOS, você precisa usar o botão de compartilhamento e selecionar "Adicionar à Tela de Início" para instalar o aplicativo.
-            </p>
-          </div>
+            </AlertDescription>
+          </Alert>
         )}
         
         <div className="mt-4">
@@ -228,37 +234,27 @@ export function PWADiagnostics() {
       <CardFooter className="flex flex-wrap gap-2">
         <Button 
           variant="outline" 
-          onClick={handleRefresh} 
-          disabled={isChecking}
-          className="flex items-center gap-2"
+          onClick={verificarStatus} 
+          disabled={isVerificando}
         >
-          <RefreshCw size={16} className={isChecking ? "animate-spin" : ""} />
-          Atualizar status
+          {isVerificando ? (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> Verificando
+            </>
+          ) : (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4" /> Verificar
+            </>
+          )}
         </Button>
         
         <Button 
-          variant="outline" 
-          onClick={handleUpdateIcons} 
-          disabled={isUpdatingIcons}
-          className="flex items-center gap-2"
+          variant="default" 
+          onClick={forcarAtualizacao} 
+          disabled={isVerificando}
         >
-          <Image size={16} className={isUpdatingIcons ? "animate-pulse" : ""} />
-          Atualizar ícones
+          <RefreshCw className="mr-2 h-4 w-4" /> Forçar atualização
         </Button>
-        
-        {window.deferredPrompt && !instalado && (
-          <Button 
-            onClick={() => {
-              if (window.deferredPrompt) {
-                window.deferredPrompt.prompt();
-              }
-            }}
-            className="flex items-center gap-2"
-          >
-            <Download size={16} />
-            Instalar agora
-          </Button>
-        )}
       </CardFooter>
     </Card>
   );

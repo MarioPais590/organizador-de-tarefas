@@ -14,7 +14,7 @@
   "iarc_rating_id": "",
   "id": "/",
   "scope": "/",
-  "display_override": ["window-controls-overlay", "standalone"],
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "launch_handler": {
     "client_mode": ["navigate-existing", "auto"]
   },

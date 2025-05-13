@@ -1,11 +1,7 @@
-export * from './ApearanceSettings';
-export * from './NotificationSettings';
-export * from './DataPrivacySettings';
-export * from './AboutSection';
-export * from './GeneralSettings';
-export * from './DatabaseSettings';
-export * from './notifications/NotificationToggle';
-export * from './notifications/SoundToggle';
-export * from './notifications/AdvanceTimeSelector';
-export * from './notifications/NotificationPermissionAlert';
-export * from './PWADiagnostics';
+export { AppearanceSettings } from './AppearanceSettings';
+export { NotificationSettings } from './notifications/NotificationSettings';
+export { DataPrivacySettings } from './DataPrivacySettings';
+export { AboutSection } from './AboutSection';
+export { GeneralSettings } from './GeneralSettings';
+export { DatabaseSettings } from './DatabaseSettings';
+export { PWADiagnostics } from './PWADiagnostics';

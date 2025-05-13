@@ -1,5 +1,5 @@
 // Versão do cache
-const CACHE_NAME = 'organizador-tarefas-v7';
+const CACHE_NAME = 'organizador-tarefas-v8';
 
 // Arquivos a serem cacheados
 const urlsToCache = [
@@ -61,6 +61,12 @@ async function verificarIcones() {
         if (response.ok) {
           await cache.put(url, response.clone());
           console.log(`[Service Worker] Ícone ${url} atualizado no cache`);
+          
+          // Verificar se o ícone é um placeholder
+          const tamanhoArquivo = parseInt(response.headers.get('content-length') || '0');
+          if (tamanhoArquivo < 1500) {
+            console.warn(`[Service Worker] Ícone ${url} parece ser muito pequeno (${tamanhoArquivo} bytes), pode ser um placeholder`);
+          }
         } else {
           console.error(`[Service Worker] Falha ao buscar ícone ${url}: ${response.status}`);
         }
