@@ -197,54 +197,57 @@ export function TarefasTabs({
         </div>
       </div>
 
-      {/* Filtros de prioridade */}
-      <div className="flex flex-nowrap items-center gap-1.5 mt-4 overflow-x-auto pb-2 sm:flex-wrap sm:gap-2 sm:overflow-x-visible">
-        <span className="text-sm text-muted-foreground whitespace-nowrap">Filtrar:</span>
+      {/* Filtros de prioridade - usando grid para garantir alinhamento em iOS */}
+      <div className="mt-4 overflow-hidden scrollbar-none">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-sm text-muted-foreground whitespace-nowrap flex-shrink-0">Filtrar:</span>
+          {filtrosAtivos && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={limparFiltros}
+              className="text-muted-foreground whitespace-nowrap flex-shrink-0 ml-auto h-8 px-2 py-1 btn-ios-fix"
+            >
+              <FilterX size={14} className="mr-1" />
+              <span>Limpar</span>
+            </Button>
+          )}
+        </div>
         
-        <Button
-          variant="outline"
-          size="sm"
-          className={`px-2 min-w-min whitespace-nowrap flex-shrink-0 sm:px-3 ${filtroPrioridade === 'alta' ? 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700' : ''}`}
-          onClick={() => toggleFiltro('alta')}
-        >
-          <Flag size={12} color={prioridadeCores.alta} className="mr-1" />
-          <span>Alta</span>
-          <Badge variant="secondary" className="ml-1 h-5 px-1">{contarPorPrioridade(tarefas, 'alta')}</Badge>
-        </Button>
-        
-        <Button
-          variant="outline"
-          size="sm"
-          className={`px-2 min-w-min whitespace-nowrap flex-shrink-0 sm:px-3 ${filtroPrioridade === 'media' ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700' : ''}`}
-          onClick={() => toggleFiltro('media')}
-        >
-          <Flag size={12} color={prioridadeCores.media} className="mr-1" />
-          <span>Média</span>
-          <Badge variant="secondary" className="ml-1 h-5 px-1">{contarPorPrioridade(tarefas, 'media')}</Badge>
-        </Button>
-        
-        <Button
-          variant="outline"
-          size="sm"
-          className={`px-2 min-w-min whitespace-nowrap flex-shrink-0 sm:px-3 ${filtroPrioridade === 'baixa' ? 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700' : ''}`}
-          onClick={() => toggleFiltro('baixa')}
-        >
-          <Flag size={12} color={prioridadeCores.baixa} className="mr-1" />
-          <span>Baixa</span>
-          <Badge variant="secondary" className="ml-1 h-5 px-1">{contarPorPrioridade(tarefas, 'baixa')}</Badge>
-        </Button>
-        
-        {filtrosAtivos && (
+        <div className="grid grid-cols-3 gap-1 sm:flex sm:flex-wrap sm:gap-2 ios-scroll-fix">
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
-            onClick={limparFiltros}
-            className="text-muted-foreground whitespace-nowrap flex-shrink-0"
+            className={`h-9 px-0 text-xs sm:text-sm sm:px-3 sm:h-10 flex items-center justify-center btn-ios-fix ${filtroPrioridade === 'alta' ? 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700' : ''}`}
+            onClick={() => toggleFiltro('alta')}
           >
-            <FilterX size={14} className="mr-1" />
-            <span>Limpar filtros</span>
+            <Flag size={12} color={prioridadeCores.alta} className="mr-1" />
+            <span>Alta</span>
+            <Badge variant="secondary" className="ml-1 h-5 px-1">{contarPorPrioridade(tarefas, 'alta')}</Badge>
           </Button>
-        )}
+          
+          <Button
+            variant="outline"
+            size="sm"
+            className={`h-9 px-0 text-xs sm:text-sm sm:px-3 sm:h-10 flex items-center justify-center btn-ios-fix ${filtroPrioridade === 'media' ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700' : ''}`}
+            onClick={() => toggleFiltro('media')}
+          >
+            <Flag size={12} color={prioridadeCores.media} className="mr-1" />
+            <span>Média</span>
+            <Badge variant="secondary" className="ml-1 h-5 px-1">{contarPorPrioridade(tarefas, 'media')}</Badge>
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            className={`h-9 px-0 text-xs sm:text-sm sm:px-3 sm:h-10 flex items-center justify-center btn-ios-fix ${filtroPrioridade === 'baixa' ? 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700' : ''}`}
+            onClick={() => toggleFiltro('baixa')}
+          >
+            <Flag size={12} color={prioridadeCores.baixa} className="mr-1" />
+            <span>Baixa</span>
+            <Badge variant="secondary" className="ml-1 h-5 px-1">{contarPorPrioridade(tarefas, 'baixa')}</Badge>
+          </Button>
+        </div>
       </div>
       
       <TabsContent value="pendentes" className="mt-4">

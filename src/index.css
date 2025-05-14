@@ -81,4 +81,50 @@
   .animate-in {
     @apply animate-fade-in;
   }
+  
+  /* Estilos para ocultar a barra de rolagem mantendo funcionalidade */
+  .scrollbar-none {
+    -ms-overflow-style: none;  /* IE e Edge */
+    scrollbar-width: none;     /* Firefox */
+    /* WebKit (Chrome, Safari, iOS) */
+    &::-webkit-scrollbar {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+  }
+  
+  /* Ajuste específico para iOS */
+  @supports (-webkit-touch-callout: none) {
+    .ios-scroll-fix {
+      -webkit-overflow-scrolling: touch;
+      overflow-x: auto;
+      display: flex;
+      flex-wrap: nowrap;
+    }
+    
+    /* Garantir que o grid funcione corretamente no iOS */
+    .grid-cols-3 {
+      display: grid !important;
+      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+      width: 100% !important;
+    }
+    
+    /* Ajustes adicionais para iOS */
+    button {
+      /* Previnir comportamento de toque no iOS */
+      -webkit-tap-highlight-color: transparent;
+      /* Garantir que botões não mudem de tamanho em dispositivos iOS */
+      -webkit-appearance: none;
+    }
+    
+    /* Corrigir problema de padding interno em botões no iOS */
+    .btn-ios-fix {
+      padding-left: 0.5rem !important;
+      padding-right: 0.5rem !important;
+      /* Garantir que texto não seja cortado */
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+  }
 }
