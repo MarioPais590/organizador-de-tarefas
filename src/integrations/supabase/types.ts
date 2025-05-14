@@ -9,6 +9,7 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      /* Comentando a tabela de anexos para evitar erros
       anexos: {
         Row: {
           conteudo: string
@@ -35,7 +36,8 @@ export type Database = {
           url?: string | null
         }
         Relationships: []
-      }
+      },
+      */
       categorias: {
         Row: {
           cor: string
@@ -162,6 +164,7 @@ export type Database = {
         }
         Relationships: []
       }
+      /* Comentando a tabela de relacionamento entre tarefas e anexos
       tarefa_anexos: {
         Row: {
           anexo_id: string
@@ -197,7 +200,8 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
+      },
+      */
       tarefas: {
         Row: {
           categoria_id: string

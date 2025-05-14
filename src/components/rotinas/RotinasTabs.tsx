@@ -31,23 +31,47 @@ export const RotinasTabs = ({
       onValueChange={onTabChange}
       className="mb-8"
     >
-      <div className="w-full overflow-x-auto pb-2">
-        <TabsList className="w-full flex flex-nowrap justify-start md:justify-center">
-          <TabsTrigger value="todas" className="flex items-center gap-2 whitespace-nowrap">
-            <RepeatIcon className="h-4 w-4" /> 
-            Todas ({rotinas.length})
+      <div className="w-full max-w-full">
+        <TabsList className="w-full grid grid-cols-4 gap-x-1">
+          <TabsTrigger 
+            value="todas" 
+            className="flex items-center gap-1 text-xs sm:text-sm px-1 sm:px-3 py-1.5"
+          >
+            <RepeatIcon className="h-3 w-3 sm:h-4 sm:w-4" /> 
+            <span className="flex items-center">
+              Todas 
+              <span className="ml-1 text-xs">({rotinas.length})</span>
+            </span>
           </TabsTrigger>
-          <TabsTrigger value="diarias" className="flex items-center gap-2 whitespace-nowrap">
-            <Clock className="h-4 w-4" /> 
-            Diárias ({rotinaDiaria.length})
+          <TabsTrigger 
+            value="diarias" 
+            className="flex items-center gap-1 text-xs sm:text-sm px-1 sm:px-3 py-1.5"
+          >
+            <Clock className="h-3 w-3 sm:h-4 sm:w-4" /> 
+            <span className="flex items-center">
+              Diárias
+              <span className="ml-1 text-xs">({rotinaDiaria.length})</span>
+            </span>
           </TabsTrigger>
-          <TabsTrigger value="semanais" className="flex items-center gap-2 whitespace-nowrap">
-            <Calendar className="h-4 w-4" /> 
-            Semanais ({rotinasSemanal.length})
+          <TabsTrigger 
+            value="semanais" 
+            className="flex items-center gap-1 text-xs sm:text-sm px-1 sm:px-3 py-1.5"
+          >
+            <Calendar className="h-3 w-3 sm:h-4 sm:w-4" /> 
+            <span className="flex items-center">
+              Semanais
+              <span className="ml-1 text-xs">({rotinasSemanal.length})</span>
+            </span>
           </TabsTrigger>
-          <TabsTrigger value="mensais" className="flex items-center gap-2 whitespace-nowrap">
-            <Calendar className="h-4 w-4" /> 
-            Mensais ({rotinasMenual.length})
+          <TabsTrigger 
+            value="mensais" 
+            className="flex items-center gap-1 text-xs sm:text-sm px-1 sm:px-3 py-1.5"
+          >
+            <Calendar className="h-3 w-3 sm:h-4 sm:w-4" /> 
+            <span className="flex items-center">
+              Mensais
+              <span className="ml-1 text-xs">({rotinasMenual.length})</span>
+            </span>
           </TabsTrigger>
         </TabsList>
       </div>

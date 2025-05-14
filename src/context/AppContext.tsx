@@ -11,6 +11,7 @@ import { verificarTarefasPendentes, iniciarServicoNotificacoes, pararServicoNoti
 import { tryAutoLogin } from '@/services/authService';
 import { buscarTarefas } from '@/services/taskService';
 import { verificarMigracaoNotificar } from '@/utils/dbMigrations';
+import { useNotification } from './NotificationContext';
 
 // Logger específico para AppContext
 const appContextLogger = logger.createNamespace('AppContext');
@@ -32,22 +33,25 @@ function useApp(): AppContextType {
 // Provider Component
 function AppProvider({ children }: { children: React.ReactNode }) {
   appContextLogger.info("AppProvider inicializando");
+  
+  // Estados
   const [user, setUser] = useState<any>(null);
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  
-  // Estados
-  const [tarefas, setTarefas] = useState<Tarefa[]>([]);
-  const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [rotinas, setRotinas] = useState<Rotina[]>([]);
-  const [perfil, setPerfil] = useState<DadosPerfil>({ 
-    nome: 'Usuário', 
-    nomeApp: 'Organizador de Tarefas',
-    subtitulo: 'Organize seu tempo e aumente sua produtividade',
-    corTitulo: '#3a86ff',
-    corSubtitulo: '#64748b'
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [perfil, setPerfil] = useState<DadosPerfil>({
+    nome: "",
+    nomeApp: "Organizador de Tarefas",
+    subtitulo: "Gerencie suas tarefas de forma simples e rápida",
   });
+  const [tarefas, setTarefas] = useState<Tarefa[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>(CATEGORIAS_PADRAO);
+  const [tarefasRecentes, setTarefasRecentes] = useState<Tarefa[]>([]);
+  const [rotinas, setRotinas] = useState<Rotina[]>([]);
   
+  // Obter contexto de notificações
+  const { verificarTarefas, atualizarCacheTarefas } = useNotification();
+
   const [configNotificacoes, setConfigNotificacoes] = useState<ConfiguracoesNotificacao>({
     ativadas: true,
     comSom: false,
@@ -179,6 +183,16 @@ function AppProvider({ children }: { children: React.ReactNode }) {
       const tarefasCarregadas = await buscarTarefas(user.id);
       setTarefas(tarefasCarregadas);
       appContextLogger.info(`${tarefasCarregadas.length} tarefas carregadas`);
+      
+      // Atualizar o cache de tarefas para o service worker
+      if (tarefasCarregadas.length > 0) {
+        try {
+          await atualizarCacheTarefas(tarefasCarregadas);
+          appContextLogger.info("Cache de tarefas atualizado para o service worker");
+        } catch (cacheError) {
+          appContextLogger.error("Erro ao atualizar cache de tarefas:", cacheError);
+        }
+      }
     } catch (error) {
       appContextLogger.error("Erro ao carregar tarefas:", error);
       throw error;
@@ -378,11 +392,63 @@ function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Efeito para carregar dados do usuário quando autenticado
+  // Efeito para carregar usuário e dados quando a sessão mudar
   useEffect(() => {
-    appContextLogger.info("Efeito loadUserData iniciado", { userId: user?.id });
-    loadUserData();
-  }, [user]);
+    const loadInitialData = async () => {
+      appContextLogger.info("loadInitialData chamado", { userId: user?.id });
+      setIsAuthenticated(!!user);
+      
+      if (!user) {
+        appContextLogger.info("Usuário não autenticado em loadInitialData, resetando");
+        resetToDefaults();
+        setLoading(false);
+        return;
+      }
+      
+      try {
+        appContextLogger.info("Carregando dados iniciais do usuário");
+        
+        // Verificar e aplicar migrações do banco de dados
+        await verificarMigracaoNotificar();
+        
+        // Carregar dados do perfil do usuário primeiro
+        await loadUserProfile();
+        
+        // Carregar outros dados
+        await loadUserCategories();
+        await loadUserTasks();
+        await loadUserRoutines();
+        await loadNotificationSettings();
+        
+        appContextLogger.info("Dados iniciais carregados com sucesso");
+      } catch (error) {
+        appContextLogger.error("Erro ao carregar dados iniciais:", error);
+        toast.error("Erro ao carregar dados. Tente novamente mais tarde.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    if (user?.id) {
+      loadInitialData();
+    }
+  }, [user?.id]);
+  
+  // Efeito para verificar notificações quando as tarefas mudarem
+  useEffect(() => {
+    // Se há tarefas carregadas, verificar notificações
+    if (tarefas.length > 0) {
+      // Verificar notificações
+      verificarTarefas(tarefas);
+      
+      // Também atualizar o cache para o service worker poder acessar
+      try {
+        atualizarCacheTarefas(tarefas);
+      } catch (error) {
+        appContextLogger.error("Erro ao atualizar cache de tarefas:", error);
+      }
+    }
+  }, [tarefas, verificarTarefas, atualizarCacheTarefas]);
   
   // Função para verificar tarefas pendentes
   const verificarPendentes = () => {
@@ -423,6 +489,32 @@ function AppProvider({ children }: { children: React.ReactNode }) {
       pararServicoNotificacoes();
     };
   }, [user, tarefas, configNotificacoes]);
+  
+  // Após o efeito para configurar serviço de notificações
+  useEffect(() => {
+    // Configurar ouvinte para mensagens do service worker
+    if (navigator.serviceWorker) {
+      const messageHandler = (event: MessageEvent) => {
+        if (event.data && event.data.tipo === 'tarefas-verificadas') {
+          appContextLogger.info(`Service worker verificou ${event.data.tarefas?.length || 0} tarefas`);
+          
+          // Poderíamos recarregar as tarefas ou mostrar um toast informativo
+          if (event.data.tarefas && event.data.tarefas.length > 0) {
+            toast.info(`${event.data.tarefas.length} tarefas verificadas em segundo plano`);
+          }
+        }
+      };
+      
+      navigator.serviceWorker.addEventListener('message', messageHandler);
+      
+      // Limpar ao desmontar
+      return () => {
+        if (navigator.serviceWorker) {
+          navigator.serviceWorker.removeEventListener('message', messageHandler);
+        }
+      };
+    }
+  }, []);
   
   // Funções do App
   const appFunctions = createAppFunctions(

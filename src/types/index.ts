@@ -9,7 +9,6 @@ export interface Tarefa {
   categoria: Categoria;
   prioridade: 'baixa' | 'media' | 'alta';
   concluida: boolean;
-  anexos?: Anexo[];
   notificar?: boolean;
 }
 
@@ -17,14 +16,6 @@ export interface Categoria {
   id: string;
   nome: string;
   cor: string;
-}
-
-export interface Anexo {
-  id: string;
-  nome: string;
-  tipo: string;
-  conteudo: string;
-  url?: string;
 }
 
 export interface DadosPerfil {

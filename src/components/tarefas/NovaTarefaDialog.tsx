@@ -5,17 +5,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Paperclip, FilePen, FileX, CalendarIcon, Bell, BellOff, HelpCircle } from "lucide-react";
+import { CalendarIcon, Bell, BellOff, HelpCircle, Flag } from "lucide-react";
 import { toast } from "sonner";
-import { Anexo, Categoria, ConfiguracoesNotificacao } from "@/types";
-import { IconeAnexo } from "./IconeAnexo";
+import { Categoria, ConfiguracoesNotificacao } from "@/types";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { formatarDataParaISO } from "@/utils/dateUtils";
 import { Switch } from "@/components/ui/switch";
-import { useApp } from "@/context/useApp";
+import { useApp } from "@/context/AppContext";
 import { 
   Tooltip,
   TooltipContent,
@@ -24,11 +23,18 @@ import {
 } from "@/components/ui/tooltip";
 import { verificarSuporteNotificacoes } from "@/services/notificationService";
 
+// Mapa de cores de prioridade
+const prioridadeCores = {
+  alta: '#ef4444',  // vermelho
+  media: '#f59e0b', // âmbar
+  baixa: '#10b981', // verde
+};
+
 interface NovaTarefaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   categorias: Categoria[];
-  onAddTarefa: (notificar: boolean) => void;
+  onAddTarefa: (notificar: boolean, prioridade: string) => void;
   novoTitulo: string;
   setNovoTitulo: (titulo: string) => void;
   novaDescricao: string;
@@ -39,10 +45,6 @@ interface NovaTarefaDialogProps {
   setNovaHora: (hora: string) => void;
   novaCategoria: string;
   setNovaCategoria: (categoria: string) => void;
-  anexos: Anexo[];
-  setAnexos: (anexos: Anexo[]) => void;
-  abrirEdicaoAnexo: (anexo: Anexo) => void;
-  handleFileSelect?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
 export const NovaTarefaDialog = ({
@@ -59,17 +61,13 @@ export const NovaTarefaDialog = ({
   novaHora,
   setNovaHora,
   novaCategoria,
-  setNovaCategoria,
-  anexos,
-  setAnexos,
-  abrirEdicaoAnexo,
-  handleFileSelect: externalHandleFileSelect
+  setNovaCategoria
 }: NovaTarefaDialogProps) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [date, setDate] = useState<Date | undefined>(novaData ? new Date(novaData) : undefined);
   const { configNotificacoes } = useApp();
   const [notificar, setNotificar] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [prioridade, setPrioridade] = useState<'baixa' | 'media' | 'alta'>("media"); // Prioridade média como padrão
   
   // Atualizar data interna quando mudar a externa
   useEffect(() => {
@@ -110,159 +108,16 @@ export const NovaTarefaDialog = ({
     console.log("Hora:", novaHora);
     console.log("Categoria:", novaCategoria);
     console.log("Notificar:", notificar);
-    console.log("Anexos:", anexos ? anexos.length : 0, "anexos");
-    
-    // Lista os anexos para verificar se foram processados corretamente
-    if (anexos && anexos.length > 0) {
-      anexos.forEach((anexo, index) => {
-        console.log(`Anexo ${index+1}:`, anexo.nome, anexo.tipo, 
-          anexo.conteudo ? `${anexo.conteudo.substring(0, 50)}...` : 'sem conteúdo');
-      });
-    }
+    console.log("Prioridade:", prioridade);
     
     // Chamar a função de adicionar tarefa
-    onAddTarefa(notificar);
+    onAddTarefa(notificar, prioridade);
     
     // Resetar o estado de carregamento e fechar o diálogo após um breve intervalo
     setTimeout(() => {
       setIsLoading(false);
       onOpenChange(false);
     }, 800);
-  };
-  
-  // Gerar ID único para anexos temporários
-  const gerarIdTemporario = () => {
-    return 'temp_' + Math.random().toString(36).substring(2, 11);
-  };
-  
-  // Usar o handler externo se fornecido, caso contrário usar o interno
-  const handleFileSelectFn = externalHandleFileSelect || handleFileSelect;
-  
-  // Processar arquivo de imagem com compressão
-  const processImageFile = (file: File, tipoAnexo: string, fileUrl: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const img = new Image();
-    img.onload = () => {
-      // Criar canvas para redimensionar/comprimir a imagem
-      const canvas = document.createElement('canvas');
-      
-      // Calcular dimensões mantendo proporção
-      let width = img.width;
-      let height = img.height;
-      
-      // Limitar tamanho máximo
-      const MAX_WIDTH = 1200;
-      const MAX_HEIGHT = 1200;
-      
-      if (width > height) {
-        if (width > MAX_WIDTH) {
-          height = Math.round(height * (MAX_WIDTH / width));
-          width = MAX_WIDTH;
-        }
-      } else {
-        if (height > MAX_HEIGHT) {
-          width = Math.round(width * (MAX_HEIGHT / height));
-          height = MAX_HEIGHT;
-        }
-      }
-      
-      // Configurar canvas
-      canvas.width = width;
-      canvas.height = height;
-      
-      // Desenhar imagem no canvas
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        toast.error("Erro ao processar imagem");
-        return;
-      }
-      
-      ctx.drawImage(img, 0, 0, width, height);
-      
-      // Converter para Data URL com qualidade reduzida
-      const qualidade = 0.7; // 70% de qualidade
-      const dataUrl = canvas.toDataURL(`image/${tipoAnexo === 'jpg' ? 'jpeg' : tipoAnexo}`, qualidade);
-      
-      // Adicionar anexo ao estado
-      setAnexos([...anexos, {
-        id: gerarIdTemporario(),
-        nome: file.name,
-        tipo: tipoAnexo,
-        conteudo: dataUrl,
-        url: fileUrl
-      }]);
-      
-      console.log("Anexo de imagem criado com sucesso:", file.name, "tipo:", tipoAnexo);
-      
-      // Limpar input
-      e.target.value = '';
-    };
-    
-    img.onerror = () => {
-      console.error("Erro ao carregar imagem");
-      toast.error("Erro ao processar a imagem. Tente novamente.");
-      e.target.value = '';
-    };
-    
-    img.src = fileUrl;
-  };
-  
-  // Processar outros tipos de arquivo
-  const processRegularFile = (file: File, tipo: string, fileUrl: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const reader = new FileReader();
-    
-    reader.onload = (event) => {
-      // Certificar que conteúdo não é nulo
-      if (!event.target || !event.target.result) {
-        toast.error("Erro ao ler arquivo");
-        return;
-      }
-      
-      const conteudo = event.target.result as string;
-      
-      // Verificar tamanho após conversão para base64
-      const conteudoBase64 = conteudo.split(',')[1] || '';
-      const sizeInMB = (conteudoBase64.length * 3/4) / (1024 * 1024);
-      
-      if (sizeInMB > 1) {
-        console.warn(`Conteúdo em base64 é muito grande: ${sizeInMB.toFixed(2)}MB`);
-        toast.error("O conteúdo do arquivo é muito grande após processamento. Use um arquivo menor.");
-        e.target.value = '';
-        return;
-      }
-      
-      // Log detalhado para depuração
-      console.log(`Processando anexo: ${file.name} (${tipo})`);
-      console.log(`- Tamanho base64: ${sizeInMB.toFixed(2)}MB`);
-      console.log(`- Primeiros 50 caracteres do conteúdo: ${conteudo.substring(0, 50)}...`);
-      
-      // Adicionar anexo ao estado
-      setAnexos([...anexos, {
-        id: gerarIdTemporario(),
-        nome: file.name,
-        tipo: tipo,
-        conteudo: conteudo,
-        url: fileUrl
-      }]);
-      
-      console.log(`Anexo criado com sucesso: ${file.name}, tipo: ${tipo}`);
-      
-      // Limpar input
-      e.target.value = '';
-    };
-    
-    reader.onerror = (error) => {
-      console.error("Erro ao ler arquivo:", error, reader.error);
-      toast.error("Erro ao processar o arquivo. Tente novamente.");
-      e.target.value = '';
-    };
-    
-    // Usar readAsDataURL para todos os tipos de arquivo, incluindo MP3
-    reader.readAsDataURL(file);
-  };
-  
-  // Remover anexo
-  const removerAnexo = (id: string) => {
-    setAnexos(anexos.filter(a => a.id !== id));
   };
   
   // Obter texto de configurações de notificação para o tooltip
@@ -346,26 +201,59 @@ export const NovaTarefaDialog = ({
               />
             </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="categoria">Categoria</Label>
-            <Select value={novaCategoria} onValueChange={setNovaCategoria}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione uma categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                {categorias.map((categoria) => (
-                  <SelectItem key={categoria.id} value={categoria.id}>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="categoria">Categoria</Label>
+              <Select value={novaCategoria} onValueChange={setNovaCategoria}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione uma categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categorias.map((categoria) => (
+                    <SelectItem key={categoria.id} value={categoria.id}>
+                      <div className="flex items-center">
+                        <div 
+                          className="w-3 h-3 rounded-full mr-2" 
+                          style={{ backgroundColor: categoria.cor }}
+                        />
+                        {categoria.nome}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="prioridade">Prioridade</Label>
+              <Select 
+                value={prioridade} 
+                onValueChange={(value: 'baixa' | 'media' | 'alta') => setPrioridade(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a prioridade" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="alta">
                     <div className="flex items-center">
-                      <div 
-                        className="w-3 h-3 rounded-full mr-2" 
-                        style={{ backgroundColor: categoria.cor }}
-                      />
-                      {categoria.nome}
+                      <Flag className="w-3 h-3 mr-2" color={prioridadeCores.alta} />
+                      Alta
                     </div>
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  <SelectItem value="media">
+                    <div className="flex items-center">
+                      <Flag className="w-3 h-3 mr-2" color={prioridadeCores.media} />
+                      Média
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="baixa">
+                    <div className="flex items-center">
+                      <Flag className="w-3 h-3 mr-2" color={prioridadeCores.baixa} />
+                      Baixa
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           
           <div className="grid gap-2">
@@ -402,77 +290,28 @@ export const NovaTarefaDialog = ({
               </div>
             </div>
             {!verificarSuporteNotificacoes() && (
-              <p className="text-red-500 text-xs">
-                Notificações podem não funcionar neste dispositivo ou navegador.
+              <p className="text-xs text-red-500">
+                Notificações não são suportadas no seu navegador/dispositivo.
               </p>
-            )}
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="anexos">Anexos (opcional)</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                ref={fileInputRef}
-                id="anexos"
-                type="file"
-                className="hidden"
-                onChange={handleFileSelectFn}
-                accept=".jpg,.jpeg,.png,.pdf,.txt,.mp3"
-              />
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full"
-              >
-                <Paperclip className="mr-2 h-4 w-4" />
-                Adicionar Anexo
-              </Button>
-            </div>
-            
-            {anexos.length > 0 && (
-              <div className="mt-2 space-y-2 max-h-32 overflow-y-auto p-2 border rounded-md">
-                {anexos.map((anexo) => (
-                  <div key={anexo.id} className="flex items-center justify-between bg-muted/50 p-2 rounded-md">
-                    <div className="flex items-center gap-2">
-                      <IconeAnexo tipo={anexo.tipo} />
-                      <span className="text-sm truncate max-w-[180px]">{anexo.nome}</span>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button 
-                        type="button" 
-                        size="icon" 
-                        variant="ghost" 
-                        className="h-6 w-6"
-                        onClick={() => abrirEdicaoAnexo(anexo)}
-                      >
-                        <FilePen className="h-3 w-3" />
-                      </Button>
-                      <Button 
-                        type="button" 
-                        size="icon" 
-                        variant="ghost" 
-                        className="h-6 w-6 text-destructive"
-                        onClick={() => removerAnexo(anexo.id)}
-                      >
-                        <FileX className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
             )}
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
           <Button 
+            type="submit"
             onClick={handleAddTarefa}
-            disabled={!novoTitulo || !novaData || !novaCategoria}
+            disabled={!novoTitulo || !novaData || !novaCategoria || isLoading}
+            className={isLoading ? 'opacity-70' : ''}
           >
-            Adicionar Tarefa
+            {isLoading ? (
+              <>
+                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-background"></div>
+                Salvando...
+              </>
+            ) : 'Adicionar Tarefa'}
           </Button>
         </DialogFooter>
       </DialogContent>

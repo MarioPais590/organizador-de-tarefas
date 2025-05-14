@@ -7,11 +7,9 @@ import { toast } from "sonner";
 import { TarefasTabs } from "@/components/tarefas/TarefasTabs";
 import { NovaTarefaDialog } from "@/components/tarefas/NovaTarefaDialog";
 import { EditarTarefaDialog } from "@/components/tarefas/EditarTarefaDialog";
-import { EditarAnexoDialog } from "@/components/tarefas/EditarAnexoDialog";
 import { DetalhesTarefaDialog } from "@/components/tarefas/DetalhesTarefaDialog";
 import { useNavigate } from "react-router-dom";
 import { useTarefaManager } from "@/hooks/useTarefaManager";
-import { processarAnexo } from "@/services/anexoService";
 
 export default function Tarefas() {
   const { tarefas, categorias, marcarConcluida, removerTarefa, user, isLoading } = useApp();
@@ -40,47 +38,40 @@ export default function Tarefas() {
   const tarefasConcluidas = tarefas.filter(t => t.concluida);
   
   // Função para adicionar nova tarefa
-  const handleAddTarefa = (notificar: boolean = true) => {
+  const handleAddTarefa = async (notificar: boolean = true, prioridade: 'baixa' | 'media' | 'alta' = 'media') => {
     if (!novoTitulo || !novaData || !novaCategoria) {
       toast.error("Preencha todos os campos obrigatórios");
       return;
     }
 
     console.log("Adicionando tarefa com data:", novaData, "e hora:", novaHora);
+    console.log("Prioridade selecionada:", prioridade);
 
-    const resultado = tarefaManager.handleAddTarefa(
-      novoTitulo,
-      novaDescricao,
-      novaData,
-      novaHora,
-      novaCategoria,
-      notificar
-    );
+    try {
+      const resultado = await tarefaManager.handleAddTarefa(
+        novoTitulo,
+        novaDescricao,
+        novaData,
+        novaHora,
+        novaCategoria,
+        notificar,
+        prioridade
+      );
 
-    if (resultado) {
-      // Limpar campos
-      setNovoTitulo("");
-      setNovaDescricao("");
-      setNovaData("");
-      setNovaHora("");
-      setNovaCategoria("");
-      
-      tarefaManager.setDialogOpen(false);
+      if (resultado) {
+        // Limpar campos
+        setNovoTitulo("");
+        setNovaDescricao("");
+        setNovaData("");
+        setNovaHora("");
+        setNovaCategoria("");
+        
+        tarefaManager.setDialogOpen(false);
+      }
+    } catch (error) {
+      console.error("Erro ao adicionar tarefa:", error);
+      toast.error("Ocorreu um erro ao adicionar a tarefa. Tente novamente.");
     }
-  };
-  
-  // Função para processar arquivo selecionado como anexo
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    
-    const file = files[0];
-    
-    // Processar o arquivo como anexo
-    processarAnexo(file, (anexo) => {
-      tarefaManager.adicionarAnexoTemp(anexo);
-      e.target.value = ''; // Limpar input para permitir selecionar o mesmo arquivo novamente
-    });
   };
 
   // Exibir indicador de carregamento
@@ -123,10 +114,6 @@ export default function Tarefas() {
         setNovaHora={setNovaHora}
         novaCategoria={novaCategoria}
         setNovaCategoria={setNovaCategoria}
-        anexos={tarefaManager.anexos}
-        setAnexos={tarefaManager.setAnexos}
-        abrirEdicaoAnexo={tarefaManager.abrirEdicaoAnexo}
-        handleFileSelect={handleFileSelect}
       />
       
       <EditarTarefaDialog
@@ -135,26 +122,12 @@ export default function Tarefas() {
         tarefa={tarefaManager.tarefaEditando}
         categorias={categorias}
         onSaveChanges={tarefaManager.salvarEdicaoTarefa}
-        abrirEdicaoAnexo={tarefaManager.abrirEdicaoAnexo}
-      />
-      
-      <EditarAnexoDialog 
-        open={tarefaManager.dialogAnexoOpen}
-        onOpenChange={tarefaManager.setDialogAnexoOpen}
-        novoNomeAnexo={tarefaManager.novoNomeAnexo}
-        setNovoNomeAnexo={tarefaManager.setNovoNomeAnexo}
-        onSalvarEdicao={tarefaManager.anexoEditando && tarefaManager.tarefaDetalhes 
-          ? () => tarefaManager.editarAnexoTarefa(tarefaManager.tarefaDetalhes.id, tarefaManager.anexoEditando!, tarefaManager.novoNomeAnexo)
-          : tarefaManager.salvarEdicaoAnexo
-        }
       />
       
       <DetalhesTarefaDialog 
         open={tarefaManager.dialogDetalhesOpen}
         onOpenChange={tarefaManager.setDialogDetalhesOpen}
         tarefa={tarefaManager.tarefaDetalhes}
-        onEditarAnexo={tarefaManager.handleEditarAnexoNoDetalhe}
-        onRemoverAnexo={tarefaManager.handleRemoverAnexoNoDetalhe}
       />
 
       <TarefasTabs 

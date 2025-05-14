@@ -1,12 +1,12 @@
-
-import React from "react";
-import { Calendar, Edit, Trash, Eye } from "lucide-react";
+import React, { memo } from "react";
+import { Calendar, Edit, Trash, Eye, Flag } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Paperclip } from "lucide-react";
 import { Tarefa } from "@/types";
 import { formatarData } from "@/utils/dateUtils";
+import { format, isToday, isPast, parseISO, isValid } from "date-fns";
 
 interface TarefaCardProps {
   tarefa: Tarefa;
@@ -16,7 +16,69 @@ interface TarefaCardProps {
   removerTarefa: (id: string) => void;
 }
 
-export const TarefaCard = ({ 
+// Função para obter a cor da prioridade
+const getPrioridadeColor = (prioridade: string): string => {
+  switch (prioridade) {
+    case 'alta':
+      return '#ef4444'; // vermelho
+    case 'media':
+      return '#f59e0b'; // âmbar
+    case 'baixa':
+      return '#10b981'; // verde
+    default:
+      return '#f59e0b'; // âmbar como padrão
+  }
+};
+
+// Função para obter o texto da prioridade
+const getPrioridadeText = (prioridade: string): string => {
+  switch (prioridade) {
+    case 'alta':
+      return 'Alta prioridade';
+    case 'media':
+      return 'Média prioridade';
+    case 'baixa':
+      return 'Baixa prioridade';
+    default:
+      return 'Prioridade média';
+  }
+};
+
+// Componente de badge para status da data
+const DateBadge = ({ dataString }: { dataString: string }) => {
+  try {
+    if (!dataString || !dataString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return null;
+    }
+    
+    const data = parseISO(dataString);
+    
+    // Verificar se a data é válida antes de processar
+    if (isNaN(data.getTime())) {
+      return null;
+    }
+    
+    if (isPast(data) && !isToday(data)) {
+      return (
+        <span className="px-2 py-0.5 bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 rounded-full text-xs font-medium ml-2">
+          Atrasada
+        </span>
+      );
+    } else if (isToday(data)) {
+      return (
+        <span className="px-2 py-0.5 bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 rounded-full text-xs font-medium ml-2">
+          Hoje
+        </span>
+      );
+    }
+  } catch (e) {
+    console.error("Erro ao processar data:", e);
+  }
+  
+  return null;
+};
+
+export const TarefaCard = memo(({ 
   tarefa, 
   marcarConcluida, 
   abrirDetalhesTarefa, 
@@ -35,9 +97,24 @@ export const TarefaCard = ({
         <div className="flex-1">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className={`font-medium ${tarefa.concluida ? 'line-through text-muted-foreground' : ''}`}>
-                {tarefa.titulo}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className={`font-medium ${tarefa.concluida ? 'line-through text-muted-foreground' : ''}`}>
+                  {tarefa.titulo}
+                </h3>
+                <div 
+                  className="flex items-center tooltip-container" 
+                  title={getPrioridadeText(tarefa.prioridade)}
+                  aria-label={getPrioridadeText(tarefa.prioridade)}
+                >
+                  <Flag 
+                    size={12} 
+                    className="inline-block" 
+                    style={{ color: getPrioridadeColor(tarefa.prioridade) }} 
+                    aria-hidden="true"
+                  />
+                </div>
+                {!tarefa.concluida && <DateBadge dataString={tarefa.data} />}
+              </div>
               <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
                 <div className="flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
@@ -90,20 +167,8 @@ export const TarefaCard = ({
               {tarefa.descricao}
             </div>
           )}
-          
-          {tarefa.anexos && tarefa.anexos.length > 0 && (
-            <div className="mt-3">
-              <div 
-                className="text-sm font-medium flex items-center gap-1 cursor-pointer hover:text-primary"
-                onClick={() => abrirDetalhesTarefa(tarefa)}
-              >
-                <Paperclip className="h-3 w-3" />
-                <span>{tarefa.anexos.length} anexo{tarefa.anexos.length > 1 ? 's' : ''}</span>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </CardContent>
   </Card>
-);
+));

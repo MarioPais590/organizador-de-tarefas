@@ -168,9 +168,9 @@ const App: React.FC = () => {
         <ThemeProvider defaultTheme="light">
           <TooltipProvider>
             <AuthProvider>
-              <AppProvider>
-                <TaskProvider>
-                  <NotificationProvider>
+              <NotificationProvider>
+                <AppProvider>
+                  <TaskProvider>
                     <Toaster />
                     <Sonner />
                     <BrowserRouter>
@@ -242,9 +242,9 @@ const App: React.FC = () => {
                         <Route path="*" element={<NotFound />} />
                       </Routes>
                     </BrowserRouter>
-                  </NotificationProvider>
-                </TaskProvider>
-              </AppProvider>
+                  </TaskProvider>
+                </AppProvider>
+              </NotificationProvider>
             </AuthProvider>
           </TooltipProvider>
         </ThemeProvider>

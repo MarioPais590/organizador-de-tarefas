@@ -1,58 +1,57 @@
 import { useState } from 'react';
-import { Tarefa, Anexo } from '@/types';
+import { Tarefa } from '@/types';
 import { useApp } from '@/context/AppContext';
 import { toast } from 'sonner';
-import { adicionarAnexoEmMemoria, atualizarAnexoEmMemoria, removerAnexoEmMemoria } from '@/services/anexoService';
 
 /**
- * Hook personalizado para gerenciar tarefas e seus anexos
+ * Hook personalizado para gerenciar tarefas
  */
 export function useTarefaManager() {
   const { tarefas, adicionarTarefa, marcarConcluida, removerTarefa, atualizarTarefa } = useApp();
   
   const [tarefaDetalhes, setTarefaDetalhes] = useState<Tarefa | null>(null);
   const [tarefaEditando, setTarefaEditando] = useState<Tarefa | null>(null);
-  const [anexos, setAnexos] = useState<Anexo[]>([]);
-  const [anexoEditando, setAnexoEditando] = useState<string | null>(null);
-  const [novoNomeAnexo, setNovoNomeAnexo] = useState<string>('');
   
   // Diálogos
   const [dialogOpen, setDialogOpen] = useState<boolean>(false);
   const [dialogEditarOpen, setDialogEditarOpen] = useState<boolean>(false);
-  const [dialogAnexoOpen, setDialogAnexoOpen] = useState<boolean>(false);
   const [dialogDetalhesOpen, setDialogDetalhesOpen] = useState<boolean>(false);
   
   /**
    * Adiciona uma nova tarefa
    */
-  const handleAddTarefa = (
+  const handleAddTarefa = async (
     titulo: string,
     descricao: string,
     data: string,
     hora: string,
     categoriaId: string,
-    notificar: boolean = true
-  ) => {
+    notificar: boolean = true,
+    prioridade: 'baixa' | 'media' | 'alta' = 'media'
+  ): Promise<boolean> => {
     if (!titulo || !data || !categoriaId) {
       toast.error('Preencha todos os campos obrigatórios');
       return false;
     }
     
     try {
-      adicionarTarefa({
+      // Encontrar a categoria correta pelo ID
+      const categoriaEncontrada = tarefas.find(t => t.categoria?.id === categoriaId)?.categoria;
+      
+      // Se não encontrou nas tarefas existentes, buscar no contexto global
+      const categoria = categoriaEncontrada || 
+                      { id: categoriaId, nome: 'Categoria', cor: '#3b82f6' };
+      
+      await adicionarTarefa({
         titulo,
         descricao: descricao || undefined,
         concluida: false,
         data,
         hora: hora || undefined,
-        categoria: tarefas.find(t => t.id === categoriaId)?.categoria || { id: '', nome: '', cor: '' },
-        anexos,
-        prioridade: 'media',
+        categoria,
+        prioridade,
         notificar
       });
-      
-      // Limpar anexos
-      setAnexos([]);
       
       toast.success('Tarefa adicionada com sucesso!');
       return true;
@@ -61,55 +60,6 @@ export function useTarefaManager() {
       toast.error('Erro ao adicionar tarefa. Tente novamente.');
       return false;
     }
-  };
-  
-  /**
-   * Abre o diálogo de edição de anexo
-   */
-  const abrirEdicaoAnexo = (anexo: Anexo) => {
-    setAnexoEditando(anexo.id);
-    setNovoNomeAnexo(anexo.nome);
-    setDialogAnexoOpen(true);
-  };
-  
-  /**
-   * Salva a edição de um anexo
-   */
-  const salvarEdicaoAnexo = () => {
-    if (!anexoEditando || !novoNomeAnexo.trim()) return;
-    
-    setAnexos(atualizarAnexoEmMemoria(anexos, anexoEditando, novoNomeAnexo));
-    
-    setDialogAnexoOpen(false);
-    setAnexoEditando(null);
-    setNovoNomeAnexo('');
-  };
-  
-  /**
-   * Remove um anexo de uma tarefa existente
-   */
-  const removerAnexoTarefa = (tarefaId: string, anexoId: string) => {
-    const tarefa = tarefas.find(t => t.id === tarefaId);
-    if (!tarefa) return;
-    
-    const novosAnexos = tarefa.anexos ? removerAnexoEmMemoria(tarefa.anexos, anexoId) : [];
-    atualizarTarefa(tarefaId, { anexos: novosAnexos });
-  };
-  
-  /**
-   * Edita um anexo de uma tarefa existente
-   */
-  const editarAnexoTarefa = (tarefaId: string, anexoId: string, novoNome: string) => {
-    const tarefa = tarefas.find(t => t.id === tarefaId);
-    if (!tarefa || !tarefa.anexos) return;
-    
-    const novosAnexos = atualizarAnexoEmMemoria(tarefa.anexos, anexoId, novoNome);
-    
-    atualizarTarefa(tarefaId, { anexos: novosAnexos });
-    
-    setDialogAnexoOpen(false);
-    setAnexoEditando(null);
-    setNovoNomeAnexo('');
   };
   
   /**
@@ -145,66 +95,23 @@ export function useTarefaManager() {
     }
   };
   
-  /**
-   * Manipula a edição de anexos no diálogo de detalhes
-   */
-  const handleEditarAnexoNoDetalhe = (anexoId: string, nome: string) => {
-    if (!tarefaDetalhes) return;
-    
-    setAnexoEditando(anexoId);
-    setNovoNomeAnexo(nome);
-    setDialogAnexoOpen(true);
-  };
-  
-  /**
-   * Manipula a remoção de anexos no diálogo de detalhes
-   */
-  const handleRemoverAnexoNoDetalhe = (anexoId: string) => {
-    if (!tarefaDetalhes) return;
-    
-    removerAnexoTarefa(tarefaDetalhes.id, anexoId);
-  };
-  
-  /**
-   * Adiciona um anexo à lista temporária
-   */
-  const adicionarAnexoTemp = (novoAnexo: Anexo) => {
-    setAnexos(adicionarAnexoEmMemoria(anexos, novoAnexo));
-  };
-  
   return {
     // Estados
     tarefaDetalhes,
     tarefaEditando,
-    anexos,
-    anexoEditando,
-    novoNomeAnexo,
     dialogOpen,
     dialogEditarOpen,
-    dialogAnexoOpen,
     dialogDetalhesOpen,
     
     // Setters
-    setAnexos,
-    setNovoNomeAnexo,
     setDialogOpen,
     setDialogEditarOpen,
-    setDialogAnexoOpen, 
     setDialogDetalhesOpen,
     
     // Ações de tarefas
     handleAddTarefa,
     abrirDetalhesTarefa,
     abrirEditarTarefa,
-    salvarEdicaoTarefa,
-    
-    // Ações de anexos
-    abrirEdicaoAnexo,
-    salvarEdicaoAnexo,
-    editarAnexoTarefa,
-    removerAnexoTarefa,
-    handleEditarAnexoNoDetalhe,
-    handleRemoverAnexoNoDetalhe,
-    adicionarAnexoTemp
+    salvarEdicaoTarefa
   };
-} 
+}

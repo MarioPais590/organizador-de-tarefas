@@ -1,4 +1,4 @@
-import { Tarefa, Categoria, DadosPerfil, Rotina, ConfiguracoesNotificacao, Anexo } from '@/types';
+import { Tarefa, Categoria, DadosPerfil, Rotina, ConfiguracoesNotificacao } from '@/types';
 import { toast } from 'sonner';
 import { CATEGORIAS_PADRAO } from './types';
 import { supabase } from '@/integrations/supabase/client';
@@ -54,44 +54,6 @@ export const createAppFunctions = (
       
       if (tarefaError) throw tarefaError;
       
-      // Criar e inserir anexos, se houver
-      let anexos: Anexo[] = [];
-      if (tarefa.anexos && tarefa.anexos.length > 0) {
-        for (const anexo of tarefa.anexos) {
-          // Inserir anexo
-          const { data: novoAnexoData, error: anexoError } = await supabase
-            .from('anexos')
-            .insert({
-              nome: anexo.nome,
-              tipo: anexo.tipo,
-              conteudo: anexo.conteudo,
-              url: anexo.url
-            })
-            .select()
-            .single();
-          
-          if (anexoError) throw anexoError;
-          
-          // Associar anexo à tarefa
-          const { error: relacaoError } = await supabase
-            .from('tarefa_anexos')
-            .insert({
-              tarefa_id: novaTarefaData.id,
-              anexo_id: novoAnexoData.id
-            });
-          
-          if (relacaoError) throw relacaoError;
-          
-          anexos.push({
-            id: novoAnexoData.id,
-            nome: novoAnexoData.nome,
-            tipo: novoAnexoData.tipo,
-            conteudo: novoAnexoData.conteudo,
-            url: novoAnexoData.url
-          });
-        }
-      }
-      
       // Construir objeto completo da tarefa para o estado local
       const novaTarefa: Tarefa = {
         id: novaTarefaData.id,
@@ -102,8 +64,7 @@ export const createAppFunctions = (
         categoria: tarefa.categoria,
         prioridade: novaTarefaData.prioridade as 'baixa' | 'media' | 'alta',
         concluida: novaTarefaData.concluida,
-        dataCriacao: new Date(novaTarefaData.data_criacao),
-        anexos: anexos
+        dataCriacao: new Date(novaTarefaData.data_criacao)
       };
       
       // Atualizar estado local
@@ -151,91 +112,16 @@ export const createAppFunctions = (
       
       if (tarefaError) throw tarefaError;
       
-      // Lidar com anexos, se fornecido
-      if (tarefaAtualizada.anexos !== undefined) {
-        // Primeiro obtemos os anexos atuais
-        const { data: anexosAtuais, error: anexosError } = await supabase
-          .from('tarefa_anexos')
-          .select(`
-            anexo_id,
-            anexos(*)
-          `)
-          .eq('tarefa_id', id);
-        
-        if (anexosError) throw anexosError;
-        
-        // Identificar anexos a remover e anexos a adicionar
-        const idsAnexosAtuais = anexosAtuais?.map(a => a.anexo_id) || [];
-        const idsAnexosNovos = tarefaAtualizada.anexos.map(a => a.id);
-        
-        // Remover anexos que não existem mais
-        for (const anexoAtualId of idsAnexosAtuais) {
-          if (!idsAnexosNovos.includes(anexoAtualId)) {
-            // Remover relação
-            await supabase
-              .from('tarefa_anexos')
-              .delete()
-              .eq('tarefa_id', id)
-              .eq('anexo_id', anexoAtualId);
-            
-            // Remover anexo
-            await supabase
-              .from('anexos')
-              .delete()
-              .eq('id', anexoAtualId);
-          }
-        }
-        
-        // Adicionar novos anexos
-        for (const anexo of tarefaAtualizada.anexos) {
-          if (!idsAnexosAtuais.includes(anexo.id)) {
-            // Inserir anexo
-            const { data: novoAnexoData, error: anexoError } = await supabase
-              .from('anexos')
-              .insert({
-                nome: anexo.nome,
-                tipo: anexo.tipo,
-                conteudo: anexo.conteudo,
-                url: anexo.url
-              })
-              .select()
-              .single();
-            
-            if (anexoError) throw anexoError;
-            
-            // Associar anexo à tarefa
-            const { error: relacaoError } = await supabase
-              .from('tarefa_anexos')
-              .insert({
-                tarefa_id: id,
-                anexo_id: novoAnexoData.id
-              });
-            
-            if (relacaoError) throw relacaoError;
-            
-            // Atualizar o ID do anexo no objeto local
-            anexo.id = novoAnexoData.id;
-          } else {
-            // Atualizar anexo existente
-            await supabase
-              .from('anexos')
-              .update({
-                nome: anexo.nome,
-                tipo: anexo.tipo,
-                conteudo: anexo.conteudo,
-                url: anexo.url
-              })
-              .eq('id', anexo.id);
-          }
-        }
-      }
-      
       // Atualizar estado local
-      setTarefas(
-        tarefas.map((t) => (t.id === id ? { ...t, ...tarefaAtualizada } : t))
-      );
-      
-      toast.success("Tarefa atualizada com sucesso!");
+      const tarefaIndex = tarefas.findIndex(t => t.id === id);
+      if (tarefaIndex !== -1) {
+        const tarefasAtualizadas = [...tarefas];
+        tarefasAtualizadas[tarefaIndex] = {
+          ...tarefasAtualizadas[tarefaIndex],
+          ...tarefaAtualizada
+        };
+        setTarefas(tarefasAtualizadas);
+      }
     } catch (error) {
       console.error("Erro ao atualizar tarefa:", error);
       toast.error("Erro ao atualizar tarefa. Por favor, tente novamente.");
@@ -249,7 +135,7 @@ export const createAppFunctions = (
         return;
       }
       
-      // Remover tarefa do Supabase (as relações e anexos são removidos automaticamente pelas restrições FK)
+      // Remover tarefa do Supabase
       const { error } = await supabase
         .from('tarefas')
         .delete()
@@ -797,7 +683,7 @@ export const createAppFunctions = (
       pararServicoNotificacoes();
       
       // Remover dados do Supabase
-      // 1. Remover tarefas (os anexos serão removidos automaticamente pelas restrições FK)
+      // 1. Remover tarefas
       await supabase
         .from('tarefas')
         .delete()
