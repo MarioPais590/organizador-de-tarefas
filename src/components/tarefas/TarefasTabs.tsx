@@ -198,13 +198,13 @@ export function TarefasTabs({
       </div>
 
       {/* Filtros de prioridade */}
-      <div className="flex flex-wrap items-center gap-2 mt-4">
-        <span className="text-sm text-muted-foreground">Filtrar:</span>
+      <div className="flex flex-nowrap items-center gap-1.5 mt-4 overflow-x-auto pb-2 sm:flex-wrap sm:gap-2 sm:overflow-x-visible">
+        <span className="text-sm text-muted-foreground whitespace-nowrap">Filtrar:</span>
         
         <Button
           variant="outline"
           size="sm"
-          className={`px-3 ${filtroPrioridade === 'alta' ? 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700' : ''}`}
+          className={`px-2 min-w-min whitespace-nowrap flex-shrink-0 sm:px-3 ${filtroPrioridade === 'alta' ? 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700' : ''}`}
           onClick={() => toggleFiltro('alta')}
         >
           <Flag size={12} color={prioridadeCores.alta} className="mr-1" />
@@ -215,7 +215,7 @@ export function TarefasTabs({
         <Button
           variant="outline"
           size="sm"
-          className={`px-3 ${filtroPrioridade === 'media' ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700' : ''}`}
+          className={`px-2 min-w-min whitespace-nowrap flex-shrink-0 sm:px-3 ${filtroPrioridade === 'media' ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700' : ''}`}
           onClick={() => toggleFiltro('media')}
         >
           <Flag size={12} color={prioridadeCores.media} className="mr-1" />
@@ -226,7 +226,7 @@ export function TarefasTabs({
         <Button
           variant="outline"
           size="sm"
-          className={`px-3 ${filtroPrioridade === 'baixa' ? 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700' : ''}`}
+          className={`px-2 min-w-min whitespace-nowrap flex-shrink-0 sm:px-3 ${filtroPrioridade === 'baixa' ? 'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700' : ''}`}
           onClick={() => toggleFiltro('baixa')}
         >
           <Flag size={12} color={prioridadeCores.baixa} className="mr-1" />
@@ -239,7 +239,7 @@ export function TarefasTabs({
             variant="ghost"
             size="sm"
             onClick={limparFiltros}
-            className="text-muted-foreground"
+            className="text-muted-foreground whitespace-nowrap flex-shrink-0"
           >
             <FilterX size={14} className="mr-1" />
             <span>Limpar filtros</span>
