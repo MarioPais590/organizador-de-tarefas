@@ -1,32 +1,33 @@
-
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import React from 'react';
+import { Switch } from '../../ui/switch';
+import { Label } from '../../ui/label';
 
 interface NotificationToggleProps {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
-  disabled?: boolean;
 }
 
-export function NotificationToggle({ 
-  checked, 
-  onCheckedChange,
-  disabled = false 
-}: NotificationToggleProps) {
+export const NotificationToggle: React.FC<NotificationToggleProps> = ({
+  checked,
+  onCheckedChange
+}) => {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center justify-between space-x-2">
       <div>
-        <Label htmlFor="notificacoes">Notificações Push</Label>
-        <p className="text-sm text-muted-foreground">
-          Receba alertas sobre tarefas pendentes
+        <Label htmlFor="notification-toggle" className="text-base font-medium">
+          Ativar notificações
+        </Label>
+        <p className="text-sm text-muted-foreground mt-1">
+          Receba alertas sobre suas tarefas pendentes
         </p>
       </div>
-      <Switch 
-        id="notificacoes" 
-        checked={checked} 
+      <Switch
+        id="notification-toggle"
+        checked={checked}
         onCheckedChange={onCheckedChange}
-        disabled={disabled}
       />
     </div>
   );
-}
+};
+
+export default NotificationToggle;

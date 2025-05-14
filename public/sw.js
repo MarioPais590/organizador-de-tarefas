@@ -5,16 +5,28 @@
  */
 
 // Nome do cache
-const CACHE_NAME = 'organizador-tarefas-v1';
+const CACHE_NAME = 'organizador-tarefas-v2';
 
-// Intervalo para verificação periódica de tarefas (15 minutos)
-const CHECK_INTERVAL = 15 * 60 * 1000;
+// Configurações de verificação periódica
+let CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutos por padrão
+let MIN_CHECK_INTERVAL = 1 * 60 * 1000; // 1 minuto, intervalo mínimo
+let lastCheckTime = 0;
+let isBackgroundMode = false;
+let backgroundStartTime = 0;
+let proximasTarefas = [];
+let tarefasCache = [];
+let heartbeatTimer = null;
+let backgroundCheckTimer = null;
+let lastBatteryLevel = 1.0; // Nível de bateria inicial (cheio)
+let isBatteryLow = false;
 
-// Intervalo para heartbeat (5 minutos)
-const HEARTBEAT_INTERVAL = 5 * 60 * 1000;
+// Variáveis para ajuste adaptativo
+let tarefasProximasEncontradas = false;
+let tempoProximaTarefa = Infinity;
+let intervaloDinamico = CHECK_INTERVAL;
 
-// Chave para armazenar a última verificação
-const LAST_CHECK_KEY = 'lastTarefaCheck';
+// Cache de mensagens pendentes que não puderam ser entregues
+let mensagensPendentes = [];
 
 // Arquivos a serem cacheados inicialmente
 const urlsToCache = [
@@ -28,53 +40,27 @@ const urlsToCache = [
   '/icons/icon-152x152.png',
   '/icons/icon-192x192.png',
   '/icons/icon-384x384.png',
-  '/icons/icon-512x512.png'
+  '/icons/icon-512x512.png',
+  '/icons/maskable-icon-512x512.png',
+  '/sounds/notification.mp3'
 ];
-
-// Variáveis para rastrear verificações e heartbeats
-let checkTimer = null;
-let heartbeatTimer = null;
 
 // Evento de instalação - pré-cachear arquivos
 self.addEventListener('install', event => {
   console.log('[Service Worker] Instalando...');
-  
-  // Pré-cachear arquivos
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        console.log('[Service Worker] Cacheando arquivos');
-        return cache.addAll(urlsToCache);
-      })
-      .then(() => self.skipWaiting())
-  );
+  // Ativar imediatamente
+  self.skipWaiting();
 });
 
 // Evento de ativação - limpar caches antigos
 self.addEventListener('activate', event => {
-  console.log('[Service Worker] Ativando...');
+  console.log('[Service Worker] Ativado!');
   
-  // Limpar caches antigos
-  event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('[Service Worker] Removendo cache antigo:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    }).then(() => {
-      console.log('[Service Worker] Agora está gerenciando os clientes');
-      return self.clients.claim();
-    }).then(() => {
-      // Iniciar verificação periódica de tarefas
-      iniciarVerificacaoPeriodica();
-      // Iniciar heartbeat
-      iniciarHeartbeat();
-    })
-  );
+  // Reivindicar clientes para este service worker
+  event.waitUntil(clients.claim());
+  
+  // Iniciar heartbeat para manter service worker ativo
+  iniciarHeartbeat();
 });
 
 // Evento de fetch - estratégia de cache
@@ -120,6 +106,8 @@ self.addEventListener('sync', event => {
   
   if (event.tag === 'verificar-tarefas') {
     event.waitUntil(verificarTarefasPendentes());
+  } else if (event.tag === 'sincronizacao-periodica') {
+    event.waitUntil(registrarSincronizacaoPeriodica());
   }
 });
 
@@ -144,8 +132,24 @@ self.addEventListener('push', event => {
     vibrate: [100, 50, 100],
     data: data.data || {},
     requireInteraction: true,  // Manter a notificação visível até interação do usuário
-    tag: data.tag || 'default'  // Permitir agrupar notificações
+    tag: data.tag || 'default',  // Permitir agrupar notificações
+    actions: [
+      {
+        action: 'view',
+        title: 'Ver detalhes'
+      },
+      {
+        action: 'close',
+        title: 'Fechar'
+      }
+    ],
+    silent: false
   };
+  
+  // Se recebemos dados sobre a tarefa, adicionar à notificação
+  if (data.data && data.data.tarefa) {
+    options.data.tarefa = data.data.tarefa;
+  }
   
   event.waitUntil(
     self.registration.showNotification(data.title, options)
@@ -156,11 +160,22 @@ self.addEventListener('push', event => {
 self.addEventListener('notificationclick', event => {
   console.log('[Service Worker] Notificação clicada:', event.notification.tag);
   
+  // Fechar a notificação
   event.notification.close();
   
   // Dados personalizados da notificação
   const notificacaoData = event.notification.data || {};
-  const urlDestino = notificacaoData.url || '/';
+  let urlDestino = '/';
+  
+  // Se a notificação contém dados sobre a tarefa, construir URL para a tarefa
+  if (notificacaoData.tarefa) {
+    urlDestino = `/tarefa/${notificacaoData.tarefa.id}`;
+  }
+  
+  // Processar ações específicas
+  if (event.action === 'view' && notificacaoData.tarefa) {
+    urlDestino = `/tarefa/${notificacaoData.tarefa.id}`;
+  }
   
   event.waitUntil(
     clients.matchAll({
@@ -182,7 +197,96 @@ self.addEventListener('notificationclick', event => {
   );
 });
 
-// Iniciar verificação periódica de tarefas pendentes
+// Evento para fechamento de notificação
+self.addEventListener('notificationclose', event => {
+  console.log('[Service Worker] Notificação fechada:', event.notification.tag);
+});
+
+// Evento de mensagem
+self.addEventListener('message', event => {
+  const data = event.data;
+  
+  if (data && data.type) {
+    switch (data.type) {
+      case 'APP_BACKGROUND':
+        console.log('[Service Worker] Aplicativo entrou em segundo plano');
+        isBackgroundMode = true;
+        backgroundStartTime = Date.now();
+        iniciarVerificacaoEmSegundoPlano();
+        break;
+        
+      case 'APP_FOREGROUND':
+        console.log('[Service Worker] Aplicativo voltou para o primeiro plano');
+        isBackgroundMode = false;
+        pararVerificacaoEmSegundoPlano();
+        break;
+        
+      case 'CHECK_NOW':
+        console.log('[Service Worker] Solicitação para verificar tarefas imediatamente');
+        verificarTarefasPendentes();
+        break;
+        
+      case 'REGISTER_PUSH':
+        console.log('[Service Worker] Solicitação para registrar para notificações push');
+        registrarParaNotificacoesPush(data.subscription);
+        break;
+        
+      case 'UPDATE_CONFIG':
+        console.log('[Service Worker] Atualização de configurações');
+        atualizarConfiguracoes(data.config);
+        break;
+        
+      case 'UPDATE_TAREFAS_CACHE':
+        if (Array.isArray(data.tarefas)) {
+          console.log('[Service Worker] Atualizando cache de tarefas:', data.tarefas.length);
+          tarefasCache = data.tarefas;
+        }
+        break;
+        
+      case 'CHECK_PENDING_MESSAGES':
+        console.log('[Service Worker] Verificando mensagens pendentes');
+        enviarMensagensPendentes(event.source);
+        break;
+        
+      case 'TEST_NOTIFICATION':
+        console.log('[Service Worker] Evento de teste de notificação recebido');
+        enviarNotificacaoTeste(event.source);
+        break;
+    }
+  }
+});
+
+// Evento de estado de visibilidade (iOS Safari)
+self.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    console.log('[Service Worker] Documento oculto (segundo plano)');
+    isBackgroundMode = true;
+    backgroundStartTime = Date.now();
+    iniciarVerificacaoEmSegundoPlano();
+  } else {
+    console.log('[Service Worker] Documento visível (primeiro plano)');
+    isBackgroundMode = false;
+    pararVerificacaoEmSegundoPlano();
+  }
+});
+
+// Em alguns navegadores, precisamos interceptar o evento que indica quando o dispositivo entra em modo inativo
+self.addEventListener('freeze', () => {
+  console.log('[Service Worker] Dispositivo em modo inativo (freeze)');
+  isBackgroundMode = true;
+  // Salvar estado antes de congelar
+  persistirEstadoAtual();
+});
+
+self.addEventListener('resume', () => {
+  console.log('[Service Worker] Dispositivo saiu do modo inativo (resume)');
+  isBackgroundMode = false;
+  // Restaurar estado após descongelar
+  restaurarEstadoSalvo();
+  verificarTarefasPendentes();
+});
+
+// Função para iniciar verificação periódica de tarefas
 function iniciarVerificacaoPeriodica() {
   console.log('[Service Worker] Iniciando verificação periódica de tarefas');
   
@@ -223,6 +327,50 @@ function iniciarVerificacaoPeriodica() {
     console.log('[Service Worker] Dispositivo está online, verificando tarefas pendentes');
     verificarTarefasPendentes();
   });
+}
+
+// Função para iniciar verificação em segundo plano (mais frequente)
+function iniciarVerificacaoEmSegundoPlano() {
+  console.log('[Service Worker] Iniciando verificação em segundo plano');
+  
+  // Limpar timer anterior, se existir
+  if (backgroundCheckTimer) {
+    clearInterval(backgroundCheckTimer);
+  }
+  
+  // Verificar imediatamente
+  verificarTarefasPendentes()
+    .then(() => {
+      // Ajustar intervalo de verificação baseado no resultado
+      ajustarIntervaloVerificacao();
+      
+      // Configurar verificação periódica
+      backgroundCheckTimer = setInterval(() => {
+        // Se estiver em modo de baixa bateria, verificar menos frequentemente
+        if (isBatteryLow && !tarefasProximasEncontradas) {
+          console.log('[Service Worker] Modo de economia de bateria ativo');
+          const agora = Date.now();
+          // Verificar a cada 15 minutos em economia de bateria, exceto se houver tarefas próximas
+          if (agora - lastCheckTime < 15 * 60 * 1000) {
+            return;
+          }
+        }
+        
+        verificarTarefasPendentes()
+          .then(() => {
+            // Re-ajustar o intervalo baseado no novo resultado
+            ajustarIntervaloVerificacao();
+          });
+      }, intervaloDinamico);
+    });
+}
+
+// Função para parar verificação em segundo plano
+function pararVerificacaoEmSegundoPlano() {
+  if (backgroundCheckTimer) {
+    clearInterval(backgroundCheckTimer);
+    backgroundCheckTimer = null;
+  }
 }
 
 // Função de heartbeat para garantir que o service worker continue ativo
@@ -359,55 +507,82 @@ function openDatabase() {
   });
 }
 
-// Função para verificar tarefas pendentes e enviar notificações
+// Função principal para verificar tarefas pendentes
 async function verificarTarefasPendentes() {
-  console.log('[Service Worker] Verificando tarefas pendentes em segundo plano:', new Date().toISOString());
-  
   try {
-    // Registrar horário da verificação
-    setLastCheckTime();
+    console.log('[Service Worker] Verificando tarefas pendentes...');
+    lastCheckTime = Date.now();
     
-    // Obter tarefas do IndexedDB
-    const tarefas = await obterTarefasArmazenadas();
-    if (!tarefas || tarefas.length === 0) {
-      console.log('[Service Worker] Nenhuma tarefa encontrada para verificar');
-      return;
+    // Tentar verificar o nível de bateria
+    await verificarBateria();
+    
+    // Se não temos nenhuma tarefa em cache, não podemos verificar
+    if (!Array.isArray(tarefasCache) || tarefasCache.length === 0) {
+      console.warn('[Service Worker] Cache de tarefas vazio, impossível verificar');
+      // Solicitar cache atualizado aos clientes
+      solicitarAtualizacaoCache();
+      return [];
     }
     
-    // Obter configurações de notificação
-    const config = await obterConfiguracoesNotificacao();
+    // Buscar configurações de notificações
+    const config = await buscarConfiguracoes();
+    
     if (!config || !config.ativadas) {
       console.log('[Service Worker] Notificações desativadas nas configurações');
-      return;
+      return [];
     }
     
     // Verificar cada tarefa
     const agora = new Date();
-    const verificadas = [];
+    const tarefasNotificar = [];
+    let menorTempoParaTarefa = Infinity;
     
-    for (const tarefa of tarefas) {
-      if (tarefa.concluida || !tarefa.notificar) continue;
+    for (const tarefa of tarefasCache) {
+      const { deveNotificar, tempoParaTarefa } = verificarNotificacaoTarefa(tarefa, agora, config);
       
-      try {
-        const resultado = verificarNotificacaoTarefa(tarefa, agora, config);
-        if (resultado.deveNotificar) {
-          // Enviar notificação
-          await enviarNotificacaoTarefa(tarefa, resultado.tempoParaTarefa);
-          verificadas.push(tarefa.id);
-        }
-      } catch (err) {
-        console.error('[Service Worker] Erro ao processar tarefa:', err);
+      if (tempoParaTarefa && tempoParaTarefa < menorTempoParaTarefa) {
+        menorTempoParaTarefa = tempoParaTarefa;
+      }
+      
+      if (deveNotificar) {
+        tarefasNotificar.push(tarefa);
       }
     }
     
-    console.log(`[Service Worker] Verificação concluída. Processadas: ${tarefas.length}, Notificadas: ${verificadas.length}`);
+    // Registrar o tempo para a próxima tarefa mais próxima para ajuste adaptativo
+    tempoProximaTarefa = menorTempoParaTarefa;
+    tarefasProximasEncontradas = menorTempoParaTarefa < CHECK_INTERVAL * 3;
     
-    // Se alguma tarefa foi verificada, notificar clientes ativos
-    if (verificadas.length > 0) {
-      notificarClientesAtivos(verificadas);
+    // Se há tarefas para notificar
+    if (tarefasNotificar.length > 0) {
+      console.log(`[Service Worker] ${tarefasNotificar.length} tarefas para notificar`, tarefasNotificar);
+      
+      // Enviar notificações
+      for (const tarefa of tarefasNotificar) {
+        enviarNotificacao(tarefa, config);
+      }
+      
+      // Guardar referência e notificar clientes
+      proximasTarefas = tarefasNotificar;
+      notificarClientesAtivos(tarefasNotificar);
+    } else {
+      console.log('[Service Worker] Nenhuma tarefa para notificar no momento');
+      
+      if (tarefasProximasEncontradas) {
+        console.log(`[Service Worker] Próxima tarefa em ${formatarTempo(tempoProximaTarefa)}`);
+      }
     }
+    
+    // Agora podemos reajustar o intervalo de verificação
+    ajustarIntervaloVerificacao();
+    
+    // Atualizar o timestamp da última verificação
+    localStorage.setItem('lastTarefaCheck', lastCheckTime.toString());
+    
+    return tarefasNotificar;
   } catch (error) {
     console.error('[Service Worker] Erro ao verificar tarefas:', error);
+    return [];
   }
 }
 
@@ -467,17 +642,27 @@ function obterTarefasDoLocalStorage() {
         return clientList[0].evaluate(() => {
           const tarefasStr = localStorage.getItem('tarefas');
           return tarefasStr ? JSON.parse(tarefasStr) : [];
+        }).catch(err => {
+          console.error('[Service Worker] Erro ao avaliar código no cliente:', err);
+          return obterTarefasArmazenadasCache();
         });
+      } else {
+        // Se não há clientes ativos, usar o cache interno
+        return obterTarefasArmazenadasCache();
       }
-      return [];
     }).catch(err => {
       console.error('[Service Worker] Erro ao acessar tarefas via client:', err);
-      return [];
+      return obterTarefasArmazenadasCache();
     });
   } catch (e) {
     console.error('[Service Worker] Erro ao obter tarefas do localStorage:', e);
-    return [];
+    return obterTarefasArmazenadasCache();
   }
+}
+
+// Obter tarefas do cache interno
+function obterTarefasArmazenadasCache() {
+  return tarefasCache;
 }
 
 // Obter configurações de notificação
@@ -546,13 +731,25 @@ function verificarNotificacaoTarefa(tarefa, agora, config) {
   // Momento em que a notificação deve ser enviada
   const momentoNotificacao = dataHoraTarefa.getTime() - milissegundosAntecedencia;
   
-  // Verificar se estamos no momento de notificar
-  // Com uma margem de 5 minutos para compensar a verificação periódica
-  const margemVerificacao = 5 * 60 * 1000;
+  // Usar margem adaptativa baseada no tempo de antecedência
+  let margemVerificacao;
+  
+  if (valorAntecedencia <= 5 && unidade === 'minutos') {
+    // Margem mais estreita para tempos curtos (30% do tempo de antecedência, mínimo 20s)
+    margemVerificacao = Math.max(20000, milissegundosAntecedencia * 0.3);
+    console.log(`[Service Worker] Usando margem estreita de ${margemVerificacao/1000}s para notificação com antecedência de ${valorAntecedencia} ${unidade}`);
+  } else if (valorAntecedencia <= 30 && unidade === 'minutos') {
+    // Margem média para tempos médios (15% do tempo de antecedência, mínimo 60s)
+    margemVerificacao = Math.max(60000, milissegundosAntecedencia * 0.15);
+    console.log(`[Service Worker] Usando margem média de ${margemVerificacao/1000}s para notificação com antecedência de ${valorAntecedencia} ${unidade}`);
+  } else {
+    // Margem padrão para tempos longos (5% do tempo, máximo 10 minutos)
+    margemVerificacao = Math.min(10 * 60 * 1000, milissegundosAntecedencia * 0.05);
+    console.log(`[Service Worker] Usando margem padrão de ${margemVerificacao/1000}s para notificação com antecedência de ${valorAntecedencia} ${unidade}`);
+  }
   
   // Verifique se o momento de notificação está entre agora e a próxima verificação
   const agoraMilis = agora.getTime();
-  const proximaVerificacao = agoraMilis + CHECK_INTERVAL;
   
   // A condição para notificar é: 
   // 1. O momento da notificação já passou OU está dentro da próxima janela de verificação
@@ -561,6 +758,17 @@ function verificarNotificacaoTarefa(tarefa, agora, config) {
     ((momentoNotificacao <= agoraMilis + margemVerificacao) && 
      (momentoNotificacao >= agoraMilis - margemVerificacao)) &&
     tempoParaTarefa > 0;
+  
+  // Adicionar logs mais detalhados para diagnóstico
+  const tempoAteNotificacao = momentoNotificacao - agoraMilis;
+  if (Math.abs(tempoAteNotificacao) < margemVerificacao * 2) {
+    console.log(`[Service Worker] Tarefa "${tarefa.titulo}" analisada:
+      Tempo até tarefa: ${formatarTempo(tempoParaTarefa)}
+      Tempo até notificação: ${formatarTempo(tempoAteNotificacao)} (${tempoAteNotificacao > 0 ? 'futuro' : 'passado'})
+      Margem de verificação: ${formatarTempo(margemVerificacao)}
+      Deve notificar? ${deveNotificar ? 'SIM' : 'NÃO'}
+    `);
+  }
   
   return {
     deveNotificar,
@@ -631,21 +839,41 @@ function registrarTarefaNotificada(tarefaId) {
 // Notificar clientes ativos sobre novas verificações
 function notificarClientesAtivos(tarefasVerificadas, tipo = 'tarefas-verificadas') {
   clients.matchAll({ type: 'window' }).then(clientList => {
-    clientList.forEach(client => {
-      const mensagem = {
+    // Se não houver clientes ativos, armazenar para posterior recuperação
+    if (clientList.length === 0) {
+      // Guardar a mensagem para entrega posterior
+      storeMessageForLaterDelivery({
         tipo: tipo,
+        tarefas: tarefasVerificadas,
         timestamp: Date.now()
-      };
-      
-      // Adicionar informações específicas dependendo do tipo de mensagem
-      if (tipo === 'tarefas-verificadas') {
-        mensagem.tarefas = tarefasVerificadas;
-      } else if (tipo === 'heartbeat') {
-        mensagem.lastCheck = localStorage.getItem('lastTarefaCheck');
-        mensagem.serviceWorkerAtivo = true;
-      }
-      
+      });
+      return;
+    }
+    
+    const mensagem = {
+      tipo: tipo,
+      timestamp: Date.now()
+    };
+    
+    // Adicionar informações específicas dependendo do tipo de mensagem
+    if (tipo === 'tarefas-verificadas') {
+      mensagem.tarefas = tarefasVerificadas;
+    } else if (tipo === 'heartbeat') {
+      mensagem.lastCheck = localStorage.getItem('lastTarefaCheck');
+      mensagem.serviceWorkerAtivo = true;
+    }
+    
+    // Enviar para todos os clientes ativos
+    clientList.forEach(client => {
       client.postMessage(mensagem);
+    });
+  }).catch(err => {
+    console.error('[Service Worker] Erro ao notificar clientes:', err);
+    // Armazenar a mensagem para envio posterior
+    storeMessageForLaterDelivery({
+      tipo: tipo,
+      tarefas: tarefasVerificadas,
+      erro: 'Erro ao notificar clientes'
     });
   });
 }
@@ -695,5 +923,162 @@ function formatarTempo(milissegundos) {
     return `${minutos} minuto${minutos > 1 ? 's' : ''}`;
   } else {
     return `${segundos} segundo${segundos > 1 ? 's' : ''}`;
+  }
+}
+
+// Função para armazenar mensagens para entrega posterior
+function storeMessageForLaterDelivery(mensagem) {
+  // Adicionar timestamp se não existir
+  if (!mensagem.timestamp) {
+    mensagem.timestamp = Date.now();
+  }
+  
+  // Limitar a quantidade de mensagens pendentes para evitar consumo excessivo de memória
+  if (mensagensPendentes.length >= 50) {
+    // Remover a mensagem mais antiga
+    mensagensPendentes.shift();
+  }
+  
+  // Adicionar a nova mensagem
+  mensagensPendentes.push(mensagem);
+  
+  console.log(`[Service Worker] Mensagem armazenada para entrega posterior. Total: ${mensagensPendentes.length}`);
+}
+
+// Função para enviar mensagens pendentes para um cliente
+function enviarMensagensPendentes(client) {
+  if (!client || mensagensPendentes.length === 0) return;
+  
+  console.log(`[Service Worker] Enviando ${mensagensPendentes.length} mensagens pendentes`);
+  
+  // Enviar em lote para reduzir overhead
+  client.postMessage({
+    tipo: 'pending-messages',
+    mensagens: mensagensPendentes,
+    timestamp: Date.now()
+  });
+  
+  // Limpar mensagens após enviá-las
+  mensagensPendentes = [];
+}
+
+// Função para enviar uma notificação de teste do service worker
+async function enviarNotificacaoTeste(client) {
+  try {
+    console.log('[Service Worker] Enviando notificação de teste');
+    
+    // Enviar notificação de teste
+    await self.registration.showNotification('Teste do Service Worker', {
+      body: 'Esta notificação confirma que o Service Worker está funcionando corretamente em segundo plano.',
+      icon: '/icons/icon-192x192.png',
+      badge: '/icons/badge-72x72.png',
+      tag: 'sw-test',
+      renotify: true,
+      vibrate: [100, 50, 100],
+      data: {
+        url: '/settings/notificacoes',
+        test: true
+      }
+    });
+    
+    console.log('[Service Worker] Notificação de teste enviada');
+    
+    // Responder ao cliente que iniciou o teste
+    if (client) {
+      client.postMessage({
+        tipo: 'test-result',
+        sucesso: true,
+        timestamp: Date.now(),
+        mensagem: 'Teste de notificação em segundo plano executado com sucesso!'
+      });
+    }
+  } catch (error) {
+    console.error('[Service Worker] Erro ao enviar notificação de teste:', error);
+    
+    // Reportar erro ao cliente
+    if (client) {
+      client.postMessage({
+        tipo: 'test-result',
+        sucesso: false,
+        erro: error.message || 'Erro desconhecido',
+        timestamp: Date.now()
+      });
+    }
+  }
+}
+
+// Função para ajustar o intervalo de verificação
+function ajustarIntervaloVerificacao() {
+  // Se não encontrarmos tarefas próximas, usar o intervalo padrão
+  if (!tarefasProximasEncontradas) {
+    intervaloDinamico = CHECK_INTERVAL;
+    console.log(`[Service Worker] Usando intervalo padrão de ${formatarTempo(intervaloDinamico)}`);
+    return;
+  }
+  
+  // Ajuste dinâmico - quanto mais próxima a tarefa, menor o intervalo
+  if (tempoProximaTarefa < 5 * 60 * 1000) { // < 5 min
+    // Para tarefas muito próximas, verificar a cada 30 segundos
+    intervaloDinamico = Math.max(MIN_CHECK_INTERVAL / 2, tempoProximaTarefa / 10);
+  } else if (tempoProximaTarefa < 30 * 60 * 1000) { // < 30 min
+    // Para tarefas próximas, verificar com maior frequência
+    intervaloDinamico = Math.max(MIN_CHECK_INTERVAL, tempoProximaTarefa / 15);
+  } else {
+    // Para tarefas distantes, manter o intervalo padrão
+    intervaloDinamico = CHECK_INTERVAL;
+  }
+  
+  // Limitar o intervalo mínimo para preservar bateria
+  intervaloDinamico = Math.max(MIN_CHECK_INTERVAL, intervaloDinamico);
+  
+  // Se a bateria estiver baixa, aumentar o intervalo para economizar
+  if (isBatteryLow) {
+    intervaloDinamico = Math.max(intervaloDinamico * 2, 5 * 60 * 1000);
+  }
+  
+  console.log(`[Service Worker] Intervalo dinâmico ajustado para ${formatarTempo(intervaloDinamico)}`);
+  
+  // Atualizar o temporizador se estiver em segundo plano
+  if (isBackgroundMode && backgroundCheckTimer) {
+    clearInterval(backgroundCheckTimer);
+    backgroundCheckTimer = setInterval(() => {
+      verificarTarefasPendentes()
+        .then(() => ajustarIntervaloVerificacao());
+    }, intervaloDinamico);
+  }
+}
+
+// Função para tentar verificar o nível de bateria (quando disponível)
+async function verificarBateria() {
+  if ('getBattery' in navigator) {
+    try {
+      const battery = await navigator.getBattery();
+      lastBatteryLevel = battery.level;
+      isBatteryLow = battery.level <= 0.2 || battery.dischargingTime < 30 * 60; // < 20% ou < 30min restantes
+      
+      if (isBatteryLow) {
+        console.log(`[Service Worker] Bateria baixa (${Math.round(battery.level * 100)}%), economizando energia`);
+      }
+      
+      // Ouvir eventos de mudança de bateria
+      battery.addEventListener('levelchange', () => {
+        lastBatteryLevel = battery.level;
+        const novoEstadoBateria = battery.level <= 0.2;
+        
+        if (novoEstadoBateria !== isBatteryLow) {
+          isBatteryLow = novoEstadoBateria;
+          if (isBatteryLow) {
+            console.log(`[Service Worker] Bateria baixa (${Math.round(battery.level * 100)}%), economizando energia`);
+          } else {
+            console.log(`[Service Worker] Bateria ok (${Math.round(battery.level * 100)}%), modo normal`);
+          }
+          // Reajustar intervalos
+          ajustarIntervaloVerificacao();
+        }
+      });
+      
+    } catch (error) {
+      console.log('[Service Worker] Erro ao acessar informações de bateria:', error);
+    }
   }
 } 

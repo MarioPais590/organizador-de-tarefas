@@ -1,157 +1,195 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatarTempo } from "@/utils/dateUtils";
-import { ConfiguracoesNotificacao, Tarefa } from "@/types";
+import React, { useState } from 'react';
+import { Button } from '../../ui/button';
+import { Label } from '../../ui/label';
+import { Input } from '../../ui/input';
+import { toast } from 'sonner';
+import { appLogger } from '@/utils/logger';
+import { Badge } from '../../ui/badge';
+import { verificarSuporteNotificacoes } from '@/services/notificationService';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import ErrorHistoryViewer from './ErrorHistoryViewer';
 
-interface DebugNotificationsProps {
-  tarefas: Tarefa[];
-  configNotificacoes: ConfiguracoesNotificacao;
+// Estendendo o tipo NotificationOptions para incluir vibrate
+interface ExtendedNotificationOptions extends NotificationOptions {
+  vibrate?: number[];
+  renotify?: boolean;
 }
 
-export function DebugNotifications({ tarefas, configNotificacoes }: DebugNotificationsProps) {
-  const [debugInfo, setDebugInfo] = useState<string[]>([]);
+export const DebugNotifications: React.FC = () => {
+  const [title, setTitle] = useState('Notificação de Teste');
+  const [body, setBody] = useState('Esta é uma notificação de teste para depuração.');
+  const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
+  const [testMessage, setTestMessage] = useState('');
 
-  // Função para simular o recebimento de uma notificação
-  const simularNotificacao = (tarefa: Tarefa) => {
-    if (!("Notification" in window)) {
-      setDebugInfo(prev => [...prev, "Seu navegador não suporta notificações"]);
-      return;
-    }
-
-    if (Notification.permission !== "granted") {
-      setDebugInfo(prev => [...prev, "Permissão para notificações não concedida"]);
-      return;
-    }
-
+  const testNotification = async () => {
     try {
-      // Criar uma notificação de teste
-      const notification = new Notification(`Teste: ${tarefa.titulo}`, {
-        body: `Esta é uma notificação de teste para a tarefa "${tarefa.titulo}"`,
-        icon: "/favicon.ico",
+      if (!('Notification' in window)) {
+        setTestResult('error');
+        setTestMessage('API de Notificação não suportada neste navegador');
+        appLogger.error('API de Notificação não suportada');
+        return;
+      }
+
+      // Verificar se as notificações são suportadas
+      const notificacaoSuportada = verificarSuporteNotificacoes();
+      if (!notificacaoSuportada) {
+        setTestResult('error');
+        setTestMessage('Notificações não são suportadas neste dispositivo/navegador');
+        appLogger.warn('Notificações não são suportadas');
+        return;
+      }
+
+      if (Notification.permission !== 'granted') {
+        // Tentar obter permissão
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          setTestResult('error');
+          setTestMessage('Permissão de notificação negada pelo usuário');
+          return;
+        }
+      }
+
+      // Enviar notificação de teste
+      const options: ExtendedNotificationOptions = {
+        body: body,
+        icon: '/icons/icon-192x192.png',
+        badge: '/icons/badge-72x72.png',
+        tag: 'debug-test',
+        vibrate: [200, 100, 200],
+        requireInteraction: true,
+        renotify: true,
+        data: { test: true, timestamp: Date.now() }
+      };
+
+      const notification = new Notification(title, options);
+
+      notification.onclick = (event) => {
+        appLogger.info('Notificação de teste clicada', event);
+        notification.close();
+        window.focus();
+      };
+
+      // Reproduzir som de teste
+      try {
+        const audio = new Audio('/sounds/notification.mp3');
+        await audio.play();
+      } catch (audioError) {
+        appLogger.error('Erro ao reproduzir som', audioError);
+      }
+
+      setTestResult('success');
+      setTestMessage('Notificação enviada com sucesso!');
+      appLogger.info('Notificação de teste enviada com sucesso');
+      toast.success('Notificação de teste enviada');
+    } catch (error) {
+      setTestResult('error');
+      setTestMessage(`Erro: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      appLogger.error('Erro ao enviar notificação de teste', error);
+      toast.error('Erro ao enviar notificação de teste');
+    }
+  };
+
+  const renderStatus = () => {
+    if (testResult === 'success') {
+      return <Badge className="bg-green-100 text-green-800">Sucesso</Badge>;
+    } else if (testResult === 'error') {
+      return <Badge className="bg-red-100 text-red-800">Erro</Badge>;
+    }
+    return null;
+  };
+
+  const testServiceWorker = async () => {
+    try {
+      if (!('serviceWorker' in navigator)) {
+        toast.error('Service Worker não é suportado neste navegador');
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (!registration) {
+        toast.error('Nenhum Service Worker registrado');
+        return;
+      }
+
+      toast.success('Enviando mensagem para o Service Worker');
+      registration.active?.postMessage({
+        type: 'CHECK_NOW'
       });
-
-      setDebugInfo(prev => [...prev, `Notificação de teste enviada para: ${tarefa.titulo}`]);
     } catch (error) {
-      setDebugInfo(prev => [...prev, `Erro ao enviar notificação: ${error}`]);
+      appLogger.error('Erro ao testar Service Worker', error);
+      toast.error('Erro ao testar Service Worker');
     }
-  };
-
-  // Função para calcular o tempo até a notificação
-  const calcularTempoAteNotificacao = (tarefa: Tarefa) => {
-    try {
-      if (!tarefa.data) return "Sem data definida";
-      
-      const dataHoraTarefa = new Date(tarefa.data);
-      if (tarefa.hora) {
-        const [hora, minuto] = tarefa.hora.split(':');
-        dataHoraTarefa.setHours(parseInt(hora, 10), parseInt(minuto, 10));
-      } else {
-        dataHoraTarefa.setHours(0, 0, 0, 0);
-      }
-      
-      const agora = new Date();
-      const tempoParaTarefa = dataHoraTarefa.getTime() - agora.getTime();
-      
-      // Calcular o tempo de antecedência em milissegundos
-      const milissegundosAntecedencia = configNotificacoes.antecedencia.valor * 
-        (configNotificacoes.antecedencia.unidade === 'minutos' ? 60000 : 3600000);
-      
-      // Tempo até a notificação
-      const tempoAteNotificacao = tempoParaTarefa - milissegundosAntecedencia;
-      
-      if (tempoAteNotificacao <= 0 && tempoParaTarefa > 0) {
-        return "Notificação já deveria ter sido enviada";
-      } else if (tempoAteNotificacao <= 0) {
-        return "Tarefa já passou do prazo";
-      } else {
-        return `Em ${formatarTempo(tempoAteNotificacao)}`;
-      }
-    } catch (error) {
-      return "Erro ao calcular tempo";
-    }
-  };
-
-  // Limpar os logs de depuração
-  const limparLogs = () => {
-    setDebugInfo([]);
   };
 
   return (
-    <Card className="mt-6">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium">Depuração de Notificações</CardTitle>
-        <CardDescription>
-          Use esta ferramenta para testar o sistema de notificações
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div className="text-xs">
-            <div className="font-semibold mb-2">Configurações Atuais:</div>
-            <p>
-              Notificações: {configNotificacoes.ativadas ? "Ativadas" : "Desativadas"}<br />
-              Som: {configNotificacoes.comSom ? "Ativado" : "Desativado"}<br />
-              Antecedência: {configNotificacoes.antecedencia.valor} {configNotificacoes.antecedencia.unidade}
-            </p>
+    <div className="p-4 border border-dashed rounded-md bg-muted/50">
+      <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
+        Ferramentas de diagnóstico de notificações
+        {testResult && renderStatus()}
+      </h3>
+
+      <Tabs defaultValue="tester">
+        <TabsList className="mb-4">
+          <TabsTrigger value="tester">Teste de notificação</TabsTrigger>
+          <TabsTrigger value="errors">Histórico de erros</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="tester">
+          <div className="space-y-4 mb-4">
+            <div>
+              <Label htmlFor="notification-title">Título</Label>
+              <Input 
+                id="notification-title" 
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Título da notificação"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="notification-body">Conteúdo</Label>
+              <Input 
+                id="notification-body" 
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder="Conteúdo da notificação"
+              />
+            </div>
           </div>
 
-          <div className="text-xs">
-            <div className="font-semibold mb-2">Tarefas Pendentes:</div>
-            {tarefas.filter(t => !t.concluida).length > 0 ? (
-              <ul className="space-y-2">
-                {tarefas
-                  .filter(t => !t.concluida)
-                  .slice(0, 5)
-                  .map(tarefa => (
-                    <li key={tarefa.id} className="p-2 border rounded-md">
-                      <div className="flex justify-between">
-                        <span>{tarefa.titulo}</span>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => simularNotificacao(tarefa)}
-                          className="h-6 px-2 text-xs"
-                        >
-                          Testar
-                        </Button>
-                      </div>
-                      <div className="text-muted-foreground">
-                        Data: {tarefa.data} {tarefa.hora || ""}
-                      </div>
-                      <div className="text-muted-foreground">
-                        Notificação: {calcularTempoAteNotificacao(tarefa)}
-                      </div>
-                    </li>
-                  ))}
-              </ul>
-            ) : (
-              <p className="text-muted-foreground">Nenhuma tarefa pendente encontrada</p>
-            )}
+          <div className="flex flex-col gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={testNotification}
+            >
+              Testar notificação
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={testServiceWorker}
+            >
+              Testar Service Worker
+            </Button>
           </div>
 
-          {debugInfo.length > 0 && (
-            <div className="text-xs">
-              <div className="flex items-center justify-between">
-                <div className="font-semibold mb-2">Logs:</div>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={limparLogs}
-                  className="h-6 px-2 text-xs"
-                >
-                  Limpar
-                </Button>
-              </div>
-              <pre className="bg-muted p-2 rounded-md text-xs overflow-auto max-h-24">
-                {debugInfo.map((log, i) => (
-                  <div key={i}>{log}</div>
-                ))}
-              </pre>
+          {testMessage && (
+            <div className={`mt-4 text-xs p-2 rounded ${
+              testResult === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+            }`}>
+              {testMessage}
             </div>
           )}
-        </div>
-      </CardContent>
-    </Card>
+        </TabsContent>
+        
+        <TabsContent value="errors">
+          <ErrorHistoryViewer maxErrors={10} />
+        </TabsContent>
+      </Tabs>
+    </div>
   );
-} 
+};
+
+export default DebugNotifications; 

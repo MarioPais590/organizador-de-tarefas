@@ -7,6 +7,24 @@
   "background_color": "#ffffff",
   "theme_color": "#3a86ff",
   "orientation": "portrait-primary",
+  "gcm_sender_id": "103953800507",
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Adicionar Tarefa",
+      "short_name": "Nova Tarefa",
+      "description": "Crie uma nova tarefa",
+      "url": "/nova-tarefa"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/home.png",
+      "sizes": "1280x720",
+      "type": "image/png"
+    }
+  ],
   "icons": [
     {
       "src": "/icons/icon-72x72.png",

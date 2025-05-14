@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recuperação - Organizador de Tarefas</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 20px;
+      line-height: 1.5;
+      color: #333;
+      background-color: #f8f9fa;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #0369a1;
+      margin-top: 0;
+    }
+    h2 {
+      color: #0284c7;
+      margin-top: 25px;
+      font-size: 18px;
+    }
+    button {
+      background: #0284c7;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background: #0369a1;
+    }
+    button.warning {
+      background: #f59e0b;
+    }
+    button.warning:hover {
+      background: #d97706;
+    }
+    button.danger {
+      background: #ef4444;
+    }
+    button.danger:hover {
+      background: #dc2626;
+    }
+    .log-container {
+      margin-top: 20px;
+      background: #f1f5f9;
+      padding: 15px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .error {
+      color: #dc2626;
+    }
+    .warning {
+      color: #d97706;
+    }
+    .info {
+      color: #0284c7;
+    }
+    pre {
+      white-space: pre-wrap;
+      margin: 0;
+    }
+    .actions {
+      margin: 20px 0;
+      display: flex;
+      flex-wrap: wrap;
+    }
+    .subtitle {
+      color: #64748b;
+      font-size: 16px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Organizador de Tarefas</h1>
+    <p class="subtitle">Página de recuperação de emergência</p>
+    
+    <p>
+      Essa página é exibida quando o aplicativo encontra problemas ao carregar.
+      Utilize as opções abaixo para tentar resolver o problema.
+    </p>
+    
+    <h2>Diagnóstico</h2>
+    <div id="diagnosis-result">Aguardando diagnóstico...</div>
+    
+    <div class="actions">
+      <button id="run-diagnosis">Executar Diagnóstico</button>
+      <button id="reload-app">Recarregar Aplicativo</button>
+      <button id="clean-storage" class="warning">Limpar Dados Locais</button>
+      <button id="reset-all" class="danger">Reset Completo</button>
+    </div>
+    
+    <h2>Logs</h2>
+    <div class="log-container" id="log-container">
+      <pre>Aguardando coleta de logs...</pre>
+    </div>
+    
+    <h2>Suporte</h2>
+    <p>
+      Se os problemas persistirem, entre em contato com o suporte técnico ou
+      tente acessar o aplicativo em um navegador diferente.
+    </p>
+  </div>
+
+  <script>
+    // Diagnóstico do aplicativo
+    const diagnosisResult = document.getElementById('diagnosis-result');
+    const logContainer = document.getElementById('log-container');
+    const runDiagnosisBtn = document.getElementById('run-diagnosis');
+    const reloadAppBtn = document.getElementById('reload-app');
+    const cleanStorageBtn = document.getElementById('clean-storage');
+    const resetAllBtn = document.getElementById('reset-all');
+    
+    // Função para adicionar logs
+    function addLog(message, type = 'info') {
+      const logEntry = document.createElement('div');
+      logEntry.className = type;
+      logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logContainer.appendChild(logEntry);
+      logContainer.scrollTop = logContainer.scrollHeight;
+    }
+    
+    // Função para executar diagnóstico
+    function runDiagnosis() {
+      addLog('Iniciando diagnóstico...', 'info');
+      diagnosisResult.textContent = 'Executando diagnóstico...';
+      
+      try {
+        // Verificar localStorage
+        let localStorageWorking = false;
+        try {
+          localStorage.setItem('test', 'test');
+          if (localStorage.getItem('test') === 'test') {
+            localStorageWorking = true;
+            localStorage.removeItem('test');
+          }
+        } catch (e) {
+          addLog('Erro ao acessar localStorage: ' + e.message, 'error');
+        }
+        
+        // Verificar logs armazenados
+        let appLogs = [];
+        try {
+          const storedLogs = localStorage.getItem('app_logs');
+          if (storedLogs) {
+            appLogs = JSON.parse(storedLogs);
+            addLog(`Encontrados ${appLogs.length} logs armazenados`, 'info');
+            
+            // Mostrar últimos 5 logs de erro
+            const errorLogs = appLogs.filter(log => log.level === 'error');
+            if (errorLogs.length > 0) {
+              addLog(`Últimos erros registrados:`, 'info');
+              errorLogs.slice(0, 5).forEach(log => {
+                addLog(`${new Date(log.timestamp).toLocaleString()}: ${log.message}`, 'error');
+              });
+            }
+          }
+        } catch (e) {
+          addLog('Erro ao ler logs: ' + e.message, 'error');
+        }
+        
+        // Verificar service worker
+        let serviceWorkerRegistered = false;
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistration()
+            .then(registration => {
+              if (registration) {
+                addLog(`Service worker registrado: ${registration.scope}`, 'info');
+                serviceWorkerRegistered = true;
+              } else {
+                addLog('Nenhum service worker registrado', 'warning');
+              }
+            })
+            .catch(error => {
+              addLog('Erro ao verificar service worker: ' + error.message, 'error');
+            });
+        } else {
+          addLog('Service Worker não suportado neste navegador', 'warning');
+        }
+        
+        // Verificar cache
+        let cacheAvailable = false;
+        if ('caches' in window) {
+          cacheAvailable = true;
+          window.caches.keys()
+            .then(cacheNames => {
+              if (cacheNames.length > 0) {
+                addLog(`Caches encontrados: ${cacheNames.join(', ')}`, 'info');
+              } else {
+                addLog('Nenhum cache encontrado', 'warning');
+              }
+            })
+            .catch(error => {
+              addLog('Erro ao verificar caches: ' + error.message, 'error');
+            });
+        } else {
+          addLog('API Cache não suportada neste navegador', 'warning');
+        }
+        
+        // Verificar se é a primeira execução ou se há dados
+        const isFirstRun = !localStorage.getItem('app_initialized');
+        const hasTasks = localStorage.getItem('tarefas_offline');
+        
+        // Mostrar resultado do diagnóstico
+        const results = {
+          navegador: navigator.userAgent,
+          localStorage: localStorageWorking ? 'Funcional' : 'Com problemas',
+          serviceWorker: serviceWorkerRegistered ? 'Registrado' : 'Não registrado',
+          cache: cacheAvailable ? 'Disponível' : 'Não disponível',
+          primeiraExecucao: isFirstRun ? 'Sim' : 'Não',
+          dadosArmazenados: hasTasks ? 'Sim' : 'Não',
+          timestamp: new Date().toLocaleString()
+        };
+        
+        // Atualizar o resultado na interface
+        diagnosisResult.innerHTML = `
+          <ul>
+            <li>Navegador: ${results.navegador.split(' ').slice(-2).join(' ')}</li>
+            <li>LocalStorage: ${results.localStorage}</li>
+            <li>Service Worker: ${results.serviceWorker}</li>
+            <li>Cache: ${results.cache}</li>
+            <li>Primeira execução: ${results.primeiraExecucao}</li>
+            <li>Dados armazenados: ${results.dadosArmazenados}</li>
+          </ul>
+        `;
+        
+        addLog('Diagnóstico concluído', 'info');
+        return results;
+      } catch (error) {
+        addLog('Erro durante diagnóstico: ' + error.message, 'error');
+        diagnosisResult.textContent = 'Erro ao executar diagnóstico: ' + error.message;
+      }
+    }
+    
+    // Função para limpar armazenamento local
+    function cleanStorage() {
+      try {
+        addLog('Limpando dados locais...', 'info');
+        localStorage.clear();
+        sessionStorage.clear();
+        addLog('Dados locais limpos com sucesso', 'info');
+        return true;
+      } catch (error) {
+        addLog('Erro ao limpar dados locais: ' + error.message, 'error');
+        return false;
+      }
+    }
+    
+    // Função para limpar caches
+    async function cleanCaches() {
+      if (!('caches' in window)) {
+        addLog('API Cache não suportada neste navegador', 'warning');
+        return false;
+      }
+      
+      try {
+        addLog('Limpando caches...', 'info');
+        const cacheNames = await window.caches.keys();
+        await Promise.all(
+          cacheNames.map(cacheName => window.caches.delete(cacheName))
+        );
+        addLog('Caches limpos com sucesso', 'info');
+        return true;
+      } catch (error) {
+        addLog('Erro ao limpar caches: ' + error.message, 'error');
+        return false;
+      }
+    }
+    
+    // Função para desregistrar service worker
+    async function unregisterServiceWorker() {
+      if (!('serviceWorker' in navigator)) {
+        addLog('Service Worker não suportado neste navegador', 'warning');
+        return false;
+      }
+      
+      try {
+        addLog('Desregistrando service worker...', 'info');
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(
+          registrations.map(registration => registration.unregister())
+        );
+        addLog('Service worker desregistrado com sucesso', 'info');
+        return true;
+      } catch (error) {
+        addLog('Erro ao desregistrar service worker: ' + error.message, 'error');
+        return false;
+      }
+    }
+    
+    // Executar diagnóstico automaticamente
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        runDiagnosis();
+      }, 500);
+    });
+    
+    // Configurar event listeners
+    runDiagnosisBtn.addEventListener('click', runDiagnosis);
+    
+    reloadAppBtn.addEventListener('click', () => {
+      addLog('Recarregando aplicativo...', 'info');
+      window.location.href = '/';
+    });
+    
+    cleanStorageBtn.addEventListener('click', () => {
+      if (confirm('Isso limpará todos os dados locais, incluindo preferências e tarefas não sincronizadas. Continuar?')) {
+        cleanStorage();
+        addLog('Aguarde redirecionamento...', 'info');
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 1500);
+      }
+    });
+    
+    resetAllBtn.addEventListener('click', async () => {
+      if (confirm('Isso fará um reset completo do aplicativo, limpando todos os dados, caches e desregistrando o service worker. Continuar?')) {
+        addLog('Iniciando reset completo...', 'warning');
+        
+        await cleanStorage();
+        await cleanCaches();
+        await unregisterServiceWorker();
+        
+        addLog('Reset completo executado. Redirecionando em 3 segundos...', 'info');
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 3000);
+      }
+    });
+  </script>
+</body>
+</html> 

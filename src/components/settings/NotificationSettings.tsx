@@ -8,6 +8,11 @@ import { AdvanceTimeSelector } from "./notifications/AdvanceTimeSelector";
 import { NotificationPermissionAlert } from "./notifications/NotificationPermissionAlert";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DebugNotifications } from "./notifications/DebugNotifications";
+import { Separator } from "@/components/ui/separator";
+import { BackgroundNotificationCheck } from "./notifications/BackgroundNotificationCheck";
+import { verificarSuporteNotificacoes } from "@/services/notificationService";
+import { appLogger } from "@/utils/logger";
 
 interface NotificationSettingsProps {
   configNotificacoes: ConfiguracoesNotificacao;
@@ -27,6 +32,8 @@ export function NotificationSettings({ configNotificacoes, atualizarConfigNotifi
   const [notificacaoPermissao, setNotificacaoPermissao] = useState<NotificationPermission | "default">("default");
   const [configChanged, setConfigChanged] = useState(false);
   const [permissaoJaNotificada, setPermissaoJaNotificada] = useState(false);
+  const [backgroundNotificationsEnabled, setBackgroundNotificationsEnabled] = useState<boolean>(false);
+  const [debugMode, setDebugMode] = useState(false);
 
   // Sincronizar estados com as propriedades quando elas mudam
   useEffect(() => {
@@ -241,98 +248,79 @@ export function NotificationSettings({ configNotificacoes, atualizarConfigNotifi
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <BellRing className="h-5 w-5" /> Notificações
-        </CardTitle>
-        <CardDescription>
-          Configure as preferências de notificação
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <NotificationToggle 
-          checked={notificacoesAtivadas} 
-          onCheckedChange={(checked) => {
-            setNotificacoesAtivadas(checked);
-            setConfigChanged(true);
-            if (checked && notificacaoPermissao !== "granted") {
-              requestNotificationPermission();
-            }
-          }}
-        />
-        
-        <SoundToggle 
-          checked={somAtivado} 
-          onCheckedChange={(checked) => {
-            setSomAtivado(checked);
-            setConfigChanged(true);
-          }}
-          disabled={!notificacoesAtivadas}
-        />
-        
-        <AdvanceTimeSelector
-          valor={antecedenciaValor}
-          unidade={antecedenciaUnidade}
-          onValorChange={handleAntecedenciaChange}
-          onUnidadeChange={handleUnidadeChange}
-          disabled={!notificacoesAtivadas}
-        />
-        
-        <NotificationPermissionAlert 
-          notificationSupported={"Notification" in window}
-          permission={notificacaoPermissao}
-          onRequestPermission={requestNotificationPermission}
-        />
-
-        {configChanged && (
-          <button
-            onClick={salvarAlteracoes}
-            className="w-full py-2 px-4 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-          >
-            Salvar Alterações
-          </button>
-        )}
-        
-        {/* Botão de depuração - apenas em desenvolvimento */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-4 pt-4 border-t border-border">
-            <details className="text-xs">
-              <summary className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
-                Informações de Depuração
-              </summary>
-              <div className="mt-2 p-2 bg-muted rounded-md space-y-2">
-                <div>
-                  <h4 className="font-medium">Estado do Componente:</h4>
-                  <pre className="text-xs mt-1 p-1 bg-background rounded overflow-auto max-h-20">
-                    {JSON.stringify({
-                      antecedenciaValor,
-                      antecedenciaUnidade,
-                      notificacoesAtivadas,
-                      somAtivado,
-                      configChanged,
-                      initialized: initialized.current
-                    }, null, 2)}
-                  </pre>
-                </div>
-                <div>
-                  <h4 className="font-medium">Props do Contexto:</h4>
-                  <pre className="text-xs mt-1 p-1 bg-background rounded overflow-auto max-h-20">
-                    {JSON.stringify(configNotificacoes, null, 2)}
-                  </pre>
-                </div>
-                <button 
-                  onClick={salvarAlteracoes}
-                  className="w-full mt-2 py-1 px-2 bg-blue-500 text-white text-xs rounded-md hover:bg-blue-600 transition-colors"
-                >
-                  Forçar Salvamento
-                </button>
-              </div>
-            </details>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Notificações</CardTitle>
+          <CardDescription>
+            Configure como e quando você deseja receber notificações sobre suas tarefas
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {notificacaoPermissao === 'denied' && (
+            <NotificationPermissionAlert />
+          )}
+          
+          <NotificationToggle 
+            checked={notificacoesAtivadas} 
+            onCheckedChange={(checked) => {
+              setNotificacoesAtivadas(checked);
+              setConfigChanged(true);
+              if (checked && notificacaoPermissao !== "granted") {
+                requestNotificationPermission();
+              }
+            }}
+          />
+          
+          {notificacoesAtivadas && (
+            <>
+              <SoundToggle 
+                checked={somAtivado} 
+                onCheckedChange={(checked) => {
+                  setSomAtivado(checked);
+                  setConfigChanged(true);
+                }}
+                disabled={!notificacoesAtivadas}
+              />
+              
+              <AdvanceTimeSelector
+                valor={antecedenciaValor}
+                unidade={antecedenciaUnidade}
+                onValorChange={handleAntecedenciaChange}
+                onUnidadeChange={handleUnidadeChange}
+                disabled={!notificacoesAtivadas}
+              />
+            </>
+          )}
+          
+          {debugMode && (
+            <>
+              <Separator className="my-4" />
+              <DebugNotifications />
+            </>
+          )}
+          
+          <div className="mt-2 text-right">
+            <button 
+              onClick={() => setDebugMode(!debugMode)} 
+              className="text-xs text-muted-foreground hover:text-primary transition-colors"
+            >
+              {debugMode ? 'Desativar modo de depuração' : 'Modo de depuração'}
+            </button>
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+      
+      {/* Componente para notificações em segundo plano */}
+      <BackgroundNotificationCheck 
+        onStatusChange={(enabled) => {
+          setBackgroundNotificationsEnabled(enabled);
+          setTimeout(() => {
+            salvarAlteracoes();
+          }, 100);
+        }} 
+      />
+    </div>
   );
 }
 

@@ -1,0 +1,15 @@
+<!-- Configuração para Capacitor/Cordova para habilitar background modes no iOS -->
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>UIBackgroundModes</key>
+  <array>
+    <string>remote-notification</string>
+    <string>fetch</string>
+    <string>processing</string>
+  </array>
+  <key>aps-environment</key>
+  <string>development</string>
+</dict>
+</plist> 
