@@ -7,18 +7,20 @@ import { Button } from "@/components/ui/button";
 import { useNotification } from '@/context/NotificationContext';
 import { useApp } from '@/context/AppContext';
 import { toast } from 'sonner';
-import { BellRing, Info } from 'lucide-react';
+import { BellRing, Info, Edit, Check } from 'lucide-react';
 import { Separator } from '../ui/separator';
 import NotificationPermissionAlert from './notifications/NotificationPermissionAlert';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { BackgroundNotificationCheck } from './notifications/BackgroundNotificationCheck';
 import { NotificationTestButton } from './notifications/NotificationTestButton';
+import { Input } from "@/components/ui/input";
 import { 
   initPushService, 
   setupBackgroundDetection, 
   supportsBackgroundNotifications,
   isIOS,
-  isPWA
+  isPWA,
+  isAndroid
 } from '@/services/pushService';
 
 // Função de utilidade para comparar objetos profundamente
@@ -50,6 +52,8 @@ export const NotificationSettings: React.FC = () => {
   const [suporte, setSuporteAtivo] = useState(false);
   const [iniciando, setIniciando] = useState(true);
   const [pushIniciado, setPushIniciado] = useState(false);
+  const [tempoPersonalizado, setTempoPersonalizado] = useState(false);
+  const [valorCustom, setValorCustom] = useState("");
   
   // Referências para controlar as atualizações
   const prevConfiguracoes = useRef(configuracoes);
@@ -149,6 +153,20 @@ export const NotificationSettings: React.FC = () => {
       }
     }
   }, []);
+
+  // Verificar se valores personalizados estão sendo usados
+  useEffect(() => {
+    const valores = [5, 10, 15, 30, 60, 120];
+    const horasValores = [1, 2, 3, 6, 12, 24];
+    
+    // Verificar se o valor atual está entre os valores pré-definidos
+    const isStandardValue = configuracoes.antecedencia.unidade === 'minutos' 
+      ? valores.includes(configuracoes.antecedencia.valor)
+      : horasValores.includes(configuracoes.antecedencia.valor);
+    
+    setTempoPersonalizado(!isStandardValue);
+    setValorCustom(configuracoes.antecedencia.valor.toString());
+  }, [configuracoes.antecedencia.valor, configuracoes.antecedencia.unidade]);
   
   // Manipuladores de eventos
   const handleAtivacaoChange = (ativado: boolean) => {
@@ -183,21 +201,98 @@ export const NotificationSettings: React.FC = () => {
   };
   
   const handleAntecedenciaValorChange = (valor: string) => {
-    atualizarConfiguracoes({
-      antecedencia: {
-        ...configuracoes.antecedencia,
-        valor: parseInt(valor, 10)
+    // Converter o valor para número inteiro
+    const novoValor = parseInt(valor, 10);
+    
+    // Verificar se é um número válido
+    if (!isNaN(novoValor) && novoValor > 0) {
+      // Aplicar limitações baseadas na unidade
+      const maxValor = configuracoes.antecedencia.unidade === 'minutos' ? 60 : 72;
+      const valorFinal = Math.min(novoValor, maxValor);
+      
+      atualizarConfiguracoes({
+        antecedencia: {
+          ...configuracoes.antecedencia,
+          valor: valorFinal
+        }
+      });
+      
+      // Desativar modo personalizado se valor estiver nos presets
+      if (configuracoes.antecedencia.unidade === 'minutos') {
+        const valores = [5, 10, 15, 30, 60, 120];
+        setTempoPersonalizado(!valores.includes(valorFinal));
+      } else {
+        const horasValores = [1, 2, 3, 6, 12, 24];
+        setTempoPersonalizado(!horasValores.includes(valorFinal));
       }
-    });
+    }
   };
   
   const handleAntecedenciaUnidadeChange = (unidade: 'minutos' | 'horas') => {
+    // Ajustar o valor ao mudar a unidade para manter aproximadamente o mesmo tempo
+    let novoValor = configuracoes.antecedencia.valor;
+    
+    if (unidade === 'horas' && configuracoes.antecedencia.unidade === 'minutos') {
+      // Converter de minutos para horas (arredondando para cima)
+      novoValor = Math.max(1, Math.ceil(configuracoes.antecedencia.valor / 60));
+    } else if (unidade === 'minutos' && configuracoes.antecedencia.unidade === 'horas') {
+      // Converter de horas para minutos
+      novoValor = Math.min(60, configuracoes.antecedencia.valor * 60);
+    }
+    
     atualizarConfiguracoes({
       antecedencia: {
-        ...configuracoes.antecedencia,
+        valor: novoValor,
         unidade
       }
     });
+    
+    // Verificar se o novo valor corresponde a um dos valores padrão
+    if (unidade === 'minutos') {
+      const valores = [5, 10, 15, 30, 60, 120];
+      setTempoPersonalizado(!valores.includes(novoValor));
+    } else {
+      const horasValores = [1, 2, 3, 6, 12, 24];
+      setTempoPersonalizado(!horasValores.includes(novoValor));
+    }
+    
+    setValorCustom(novoValor.toString());
+  };
+  
+  const handleCustomValueChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const inputValue = e.target.value;
+    setValorCustom(inputValue);
+    
+    // Não atualizar as configurações em tempo real para evitar atualizações frequentes
+    // A atualização acontecerá apenas quando o usuário confirmar o valor
+  };
+  
+  const handleCustomValueConfirm = () => {
+    const novoValor = parseInt(valorCustom, 10);
+    
+    if (!isNaN(novoValor) && novoValor > 0) {
+      // Aplicar limitações baseadas na unidade
+      const maxValor = configuracoes.antecedencia.unidade === 'minutos' ? 120 : 72;
+      const minValor = 1;
+      const valorFinal = Math.min(Math.max(novoValor, minValor), maxValor);
+      
+      atualizarConfiguracoes({
+        antecedencia: {
+          ...configuracoes.antecedencia,
+          valor: valorFinal
+        }
+      });
+      
+      setValorCustom(valorFinal.toString());
+    } else {
+      // Se for inválido, restaurar para o valor atual
+      setValorCustom(configuracoes.antecedencia.valor.toString());
+      toast.error("Por favor, insira um valor numérico válido");
+    }
+  };
+  
+  const toggleCustomTime = () => {
+    setTempoPersonalizado(!tempoPersonalizado);
   };
   
   // Caso não tenha suporte, mostrar mensagem
@@ -280,42 +375,117 @@ export const NotificationSettings: React.FC = () => {
             <Separator />
             
             <div className="space-y-4">
-              <h3 className="text-sm font-medium">Tempo de antecedência</h3>
-              <div className="flex flex-wrap items-center gap-2">
-                <Select
-                  value={configuracoes.antecedencia.valor.toString()}
-                  onValueChange={handleAntecedenciaValorChange}
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium">Tempo de antecedência</h3>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 px-2" 
+                  onClick={toggleCustomTime}
                   disabled={!configuracoes.ativadas || permissaoNotificacoes === 'denied'}
                 >
-                  <SelectTrigger className="w-20">
-                    <SelectValue placeholder={configuracoes.antecedencia.valor.toString()} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="15">15</SelectItem>
-                    <SelectItem value="30">30</SelectItem>
-                    <SelectItem value="60">60</SelectItem>
-                    <SelectItem value="120">120</SelectItem>
-                  </SelectContent>
-                </Select>
-                
-                <Select
-                  value={configuracoes.antecedencia.unidade}
-                  onValueChange={(value) => handleAntecedenciaUnidadeChange(value as 'minutos' | 'horas')}
-                  disabled={!configuracoes.ativadas || permissaoNotificacoes === 'denied'}
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue placeholder={configuracoes.antecedencia.unidade} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="minutos">minutos</SelectItem>
-                    <SelectItem value="horas">horas</SelectItem>
-                  </SelectContent>
-                </Select>
-                
-                <p className="text-sm text-muted-foreground">antes da tarefa</p>
+                  <Edit className="h-4 w-4 mr-1" />
+                  {tempoPersonalizado ? "Usar predefinido" : "Personalizar"}
+                </Button>
               </div>
+              
+              {!tempoPersonalizado ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Select
+                    value={configuracoes.antecedencia.valor.toString()}
+                    onValueChange={handleAntecedenciaValorChange}
+                    disabled={!configuracoes.ativadas || permissaoNotificacoes === 'denied'}
+                  >
+                    <SelectTrigger className="w-20">
+                      <SelectValue placeholder={configuracoes.antecedencia.valor.toString()} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {configuracoes.antecedencia.unidade === 'minutos' ? (
+                        <>
+                          <SelectItem value="5">5</SelectItem>
+                          <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="15">15</SelectItem>
+                          <SelectItem value="30">30</SelectItem>
+                          <SelectItem value="60">60</SelectItem>
+                          <SelectItem value="120">120</SelectItem>
+                        </>
+                      ) : (
+                        <>
+                          <SelectItem value="1">1</SelectItem>
+                          <SelectItem value="2">2</SelectItem>
+                          <SelectItem value="3">3</SelectItem>
+                          <SelectItem value="6">6</SelectItem>
+                          <SelectItem value="12">12</SelectItem>
+                          <SelectItem value="24">24</SelectItem>
+                          <SelectItem value="48">48</SelectItem>
+                          <SelectItem value="72">72</SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  
+                  <Select
+                    value={configuracoes.antecedencia.unidade}
+                    onValueChange={(value) => handleAntecedenciaUnidadeChange(value as 'minutos' | 'horas')}
+                    disabled={!configuracoes.ativadas || permissaoNotificacoes === 'denied'}
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue placeholder={configuracoes.antecedencia.unidade} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="minutos">minutos</SelectItem>
+                      <SelectItem value="horas">horas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <p className="text-sm text-muted-foreground">antes da tarefa</p>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-2 w-36">
+                    <Input
+                      type="number"
+                      value={valorCustom}
+                      onChange={handleCustomValueChange}
+                      min={1}
+                      max={configuracoes.antecedencia.unidade === 'minutos' ? 120 : 72}
+                      className="w-20"
+                      disabled={!configuracoes.ativadas || permissaoNotificacoes === 'denied'}
+                    />
+                    <Button 
+                      size="icon" 
+                      variant="outline" 
+                      className="h-8 w-8" 
+                      onClick={handleCustomValueConfirm}
+                      disabled={!configuracoes.ativadas || permissaoNotificacoes === 'denied'}
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  <Select
+                    value={configuracoes.antecedencia.unidade}
+                    onValueChange={(value) => handleAntecedenciaUnidadeChange(value as 'minutos' | 'horas')}
+                    disabled={!configuracoes.ativadas || permissaoNotificacoes === 'denied'}
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue placeholder={configuracoes.antecedencia.unidade} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="minutos">minutos</SelectItem>
+                      <SelectItem value="horas">horas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <p className="text-sm text-muted-foreground">antes da tarefa</p>
+                </div>
+              )}
+              
+              <p className="text-xs text-muted-foreground">
+                {configuracoes.antecedencia.unidade === 'minutos' 
+                  ? 'Valor máximo: 120 minutos (2 horas)' 
+                  : 'Valor máximo: 72 horas (3 dias)'}
+              </p>
             </div>
           </div>
         </CardContent>
