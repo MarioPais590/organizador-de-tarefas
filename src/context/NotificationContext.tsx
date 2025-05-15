@@ -14,7 +14,7 @@ import {
   registrarNotificacaoEnviada,
   limparNotificacoesAntigas
 } from '@/services/storageService';
-import { solicitarSincronizacao } from '@/serviceWorkerRegistration';
+import { solicitarSincronizacao } from '@/services/serviceWorkerRegistration';
 import { toast } from 'sonner';
 
 // Tipos de notificação

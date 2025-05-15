@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Depuração - Organizador de Tarefas</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    #app-container {
+      flex: 1;
+      border: 1px solid #ccc;
+      margin-bottom: 20px;
+      position: relative;
+    }
+    #console-container {
+      height: 300px;
+      border: 1px solid #ccc;
+      padding: 10px;
+      background-color: #f5f5f5;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .log {
+      margin: 2px 0;
+      padding: 2px 0;
+    }
+    .error { color: red; }
+    .warn { color: orange; }
+    .info { color: blue; }
+    .debug { color: green; }
+    h2 {
+      margin: 0 0 10px 0;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h2>Modo de Depuração - Organizador de Tarefas</h2>
+  <div class="controls">
+    <button id="clear-console">Limpar Console</button>
+    <button id="clear-cache">Limpar Cache</button>
+    <button id="reload-app">Recarregar App</button>
+  </div>
+  <div id="app-container">
+    <iframe id="app-frame" src="/" style="width: 100%; height: 100%; border: none;"></iframe>
+  </div>
+  <h2>Console de Depuração</h2>
+  <div id="console-container"></div>
+
+  <script>
+    // Capturar logs do iframe
+    const consoleContainer = document.getElementById('console-container');
+    const appFrame = document.getElementById('app-frame');
+    const clearConsoleBtn = document.getElementById('clear-console');
+    const clearCacheBtn = document.getElementById('clear-cache');
+    const reloadAppBtn = document.getElementById('reload-app');
+    
+    // Função para adicionar mensagem ao console
+    function addLogToConsole(type, args) {
+      const log = document.createElement('div');
+      log.className = `log ${type}`;
+      log.textContent = Array.from(args).map(arg => {
+        if (typeof arg === 'object') {
+          try {
+            return JSON.stringify(arg);
+          } catch (e) {
+            return String(arg);
+          }
+        }
+        return String(arg);
+      }).join(' ');
+      consoleContainer.appendChild(log);
+      consoleContainer.scrollTop = consoleContainer.scrollHeight;
+    }
+    
+    // Quando o iframe carregar
+    appFrame.onload = function() {
+      const frameWindow = appFrame.contentWindow;
+      
+      // Substituir console.log no iframe
+      const originalLog = frameWindow.console.log;
+      const originalError = frameWindow.console.error;
+      const originalWarn = frameWindow.console.warn;
+      const originalInfo = frameWindow.console.info;
+      
+      frameWindow.console.log = function() {
+        originalLog.apply(frameWindow.console, arguments);
+        addLogToConsole('debug', arguments);
+      };
+      
+      frameWindow.console.error = function() {
+        originalError.apply(frameWindow.console, arguments);
+        addLogToConsole('error', arguments);
+      };
+      
+      frameWindow.console.warn = function() {
+        originalWarn.apply(frameWindow.console, arguments);
+        addLogToConsole('warn', arguments);
+      };
+      
+      frameWindow.console.info = function() {
+        originalInfo.apply(frameWindow.console, arguments);
+        addLogToConsole('info', arguments);
+      };
+      
+      // Capturar eventos não tratados
+      frameWindow.addEventListener('error', function(e) {
+        addLogToConsole('error', [`Erro não tratado: ${e.message} em ${e.filename}:${e.lineno}:${e.colno}`]);
+      });
+      
+      frameWindow.addEventListener('unhandledrejection', function(e) {
+        addLogToConsole('error', [`Promise não tratada: ${e.reason}`]);
+      });
+      
+      // Adicionar mensagem de sucesso
+      addLogToConsole('info', ['Depuração inicializada, aguardando logs...']);
+    };
+    
+    // Limpar console quando o botão for clicado
+    clearConsoleBtn.addEventListener('click', function() {
+      consoleContainer.innerHTML = '';
+      addLogToConsole('info', ['Console limpo']);
+    });
+    
+    // Limpar cache quando o botão for clicado
+    clearCacheBtn.addEventListener('click', function() {
+      if ('caches' in window) {
+        caches.keys().then(function(names) {
+          for (let name of names) {
+            caches.delete(name);
+          }
+          addLogToConsole('info', ['Cache limpo']);
+        });
+      }
+      
+      // Limpar localStorage
+      localStorage.clear();
+      
+      // Limpar sessionStorage
+      sessionStorage.clear();
+      
+      addLogToConsole('info', ['localStorage e sessionStorage limpos']);
+    });
+    
+    // Recarregar o app quando o botão for clicado
+    reloadAppBtn.addEventListener('click', function() {
+      appFrame.contentWindow.location.reload();
+      addLogToConsole('info', ['Aplicativo recarregado']);
+    });
+  </script>
+</body>
+</html> 

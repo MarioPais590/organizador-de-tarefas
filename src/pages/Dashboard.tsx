@@ -5,44 +5,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, Clock, BarChart, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { BarChart as RechartBarChart, CartesianGrid, XAxis, YAxis, Tooltip, Bar, ResponsiveContainer, Legend } from "recharts";
-import { Tarefa } from "@/types";
-
-// Função para ordenar tarefas por data (ordem crescente - da mais próxima para a mais distante)
-function ordenarTarefasPorData(tarefas: Tarefa[]): Tarefa[] {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0); // Normaliza para início do dia
-  
-  return [...tarefas].sort((a, b) => {
-    // Filtra tarefas sem data para o final
-    if (!a.data) return 1;
-    if (!b.data) return -1;
-    
-    // Converter strings de data para objetos Date
-    const dataA = new Date(a.data);
-    const dataB = new Date(b.data);
-    
-    // Comparar as datas
-    if (dataA < dataB) return -1;
-    if (dataA > dataB) return 1;
-    
-    // Se as datas forem iguais, ordenar por hora (se houver)
-    if (a.hora && b.hora) {
-      if (a.hora < b.hora) return -1;
-      if (a.hora > b.hora) return 1;
-    } else if (a.hora) {
-      return -1; // Tarefas com hora vêm antes das sem hora
-    } else if (b.hora) {
-      return 1;
-    }
-    
-    // Se datas e horas forem iguais, priorizar tarefas pendentes
-    if (!a.concluida && b.concluida) return -1;
-    if (a.concluida && !b.concluida) return 1;
-    
-    // Se tudo for igual, manter a ordem original
-    return 0;
-  });
-}
+import { processarTarefasRecentes } from "@/utils/sortUtils";
 
 export default function Dashboard() {
   const { tarefas, categorias } = useApp();
@@ -67,16 +30,8 @@ export default function Dashboard() {
     };
   });
 
-  // Separar tarefas pendentes e concluídas
-  const tarefasPendentesArray = tarefas.filter(t => !t.concluida);
-  const tarefasConcluidasArray = tarefas.filter(t => t.concluida);
-  
-  // Ordenar ambos os grupos por data
-  const tarefasPendentesOrdenadas = ordenarTarefasPorData(tarefasPendentesArray);
-  const tarefasConcluidasOrdenadas = ordenarTarefasPorData(tarefasConcluidasArray);
-  
-  // Combinar tarefas pendentes e concluídas ordenadas, priorizando pendentes
-  const tarefasRecentes = [...tarefasPendentesOrdenadas, ...tarefasConcluidasOrdenadas].slice(0, 5);
+  // Obter tarefas recentes ordenadas (pendentes primeiro, depois concluídas)
+  const tarefasRecentes = processarTarefasRecentes(tarefas, 5);
 
   return (
     <div className="animate-in">

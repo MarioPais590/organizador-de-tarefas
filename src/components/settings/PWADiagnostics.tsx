@@ -15,7 +15,7 @@ import {
   Server, 
   Shield 
 } from 'lucide-react';
-import { unregister } from '@/serviceWorkerRegistration';
+import { unregister } from '@/services/serviceWorkerRegistration';
 
 export interface PWADiagnosticResult {
   supported: boolean;

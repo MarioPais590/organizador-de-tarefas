@@ -1,0 +1,522 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/App.tsx");if (!window.$RefreshReg$) throw new Error("React refresh preamble was not loaded. Something is wrong.");
+const prevRefreshReg = window.$RefreshReg$;
+const prevRefreshSig = window.$RefreshSig$;
+window.$RefreshReg$ = RefreshRuntime.getRefreshReg("E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx");
+window.$RefreshSig$ = RefreshRuntime.createSignatureFunctionForTransform;
+
+import * as RefreshRuntime from "/@react-refresh";
+
+import __vite__cjsImport1_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=80f48588"; const _jsxDEV = __vite__cjsImport1_react_jsxDevRuntime["jsxDEV"];
+var _s = $RefreshSig$();
+import __vite__cjsImport2_react from "/node_modules/.vite/deps/react.js?v=80f48588"; const React = __vite__cjsImport2_react.__esModule ? __vite__cjsImport2_react.default : __vite__cjsImport2_react; const useState = __vite__cjsImport2_react["useState"]; const useEffect = __vite__cjsImport2_react["useEffect"]; const Component = __vite__cjsImport2_react["Component"];
+import { BrowserRouter, Routes, Route } from "/node_modules/.vite/deps/react-router-dom.js?v=80f48588";
+import { QueryClient, QueryClientProvider } from "/node_modules/.vite/deps/@tanstack_react-query.js?v=80f48588";
+import { TooltipProvider } from "/src/components/ui/tooltip.tsx";
+import { Toaster } from "/src/components/ui/toaster.tsx";
+import { Toaster as Sonner } from "/src/components/ui/sonner.tsx";
+import { ThemeProvider } from "/src/components/theme-provider.tsx";
+import { Layout } from "/src/components/Layout.tsx";
+import { AuthGuard } from "/src/components/AuthGuard.tsx";
+import { getErrorLogs } from "/src/utils/errorLogger.ts";
+import { appLogger } from "/src/utils/logger.ts";
+// Providers
+import { AuthProvider } from "/src/context/AuthContext.tsx";
+import { TaskProvider } from "/src/context/TaskContext.tsx";
+import { NotificationProvider } from "/src/context/NotificationContext.tsx";
+import { AppProvider } from "/src/context/AppContext.tsx";
+// Pages
+import Index from "/src/pages/Index.tsx";
+import Login from "/src/pages/Login.tsx";
+import Dashboard from "/src/pages/Dashboard.tsx";
+import Tarefas from "/src/pages/Tarefas.tsx";
+import Rotinas from "/src/pages/Rotinas.tsx";
+import Calendario from "/src/pages/Calendario.tsx";
+import Categorias from "/src/pages/Categorias.tsx";
+import Perfil from "/src/pages/Perfil.tsx";
+import Configuracoes from "/src/pages/Configuracoes.tsx";
+import NotFound from "/src/pages/NotFound.tsx";
+import DiagnosticPage from "/src/pages/DiagnosticPage.tsx";
+// Constantes e configurações
+const LOADING_DELAY_MS = 800; // Tempo de exibição mínimo para a tela de carregamento
+const queryClient = new QueryClient({
+    defaultOptions: {
+        queries: {
+            retry: 1,
+            refetchOnWindowFocus: false,
+            staleTime: 5 * 60 * 1000
+        }
+    }
+});
+class ErrorBoundary extends Component {
+    static getDerivedStateFromError(error) {
+        appLogger.error('Erro capturado pelo ErrorBoundary:', error.message);
+        return {
+            hasError: true,
+            error
+        };
+    }
+    componentDidCatch(error, errorInfo) {
+        appLogger.error("Detalhes do erro:", error, errorInfo);
+        this.setState({
+            errorInfo,
+            errorLogs: getErrorLogs()
+        });
+    }
+    render() {
+        if (this.state.hasError) {
+            const logs = this.state.errorLogs;
+            const errorLogs = logs?.errors || [];
+            return /*#__PURE__*/ _jsxDEV("div", {
+                "data-lov-id": "src\\App.tsx:86:8",
+                "data-lov-name": "div",
+                "data-component-path": "src\\App.tsx",
+                "data-component-line": "86",
+                "data-component-file": "App.tsx",
+                "data-component-name": "div",
+                "data-component-content": "%7B%22className%22%3A%22min-h-screen%20flex%20flex-col%20items-center%20justify-center%20p-4%20bg-gray-50%20dark%3Abg-gray-900%22%7D",
+                className: "min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-900",
+                children: /*#__PURE__*/ _jsxDEV("div", {
+                    "data-lov-id": "src\\App.tsx:87:10",
+                    "data-lov-name": "div",
+                    "data-component-path": "src\\App.tsx",
+                    "data-component-line": "87",
+                    "data-component-file": "App.tsx",
+                    "data-component-name": "div",
+                    "data-component-content": "%7B%22className%22%3A%22w-full%20max-w-md%20p-6%20bg-white%20dark%3Abg-gray-800%20rounded-lg%20shadow-md%22%7D",
+                    className: "w-full max-w-md p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md",
+                    children: [
+                        /*#__PURE__*/ _jsxDEV("h1", {
+                            "data-lov-id": "src\\App.tsx:88:12",
+                            "data-lov-name": "h1",
+                            "data-component-path": "src\\App.tsx",
+                            "data-component-line": "88",
+                            "data-component-file": "App.tsx",
+                            "data-component-name": "h1",
+                            "data-component-content": "%7B%22text%22%3A%22Erro%20no%20Aplicativo%22%2C%22className%22%3A%22text-xl%20font-bold%20text-red-600%20dark%3Atext-red-400%20mb-4%22%7D",
+                            className: "text-xl font-bold text-red-600 dark:text-red-400 mb-4",
+                            children: "Erro no Aplicativo"
+                        }, void 0, false, {
+                            fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                            lineNumber: 88,
+                            columnNumber: 13
+                        }, this),
+                        /*#__PURE__*/ _jsxDEV("p", {
+                            "data-lov-id": "src\\App.tsx:91:12",
+                            "data-lov-name": "p",
+                            "data-component-path": "src\\App.tsx",
+                            "data-component-line": "91",
+                            "data-component-file": "App.tsx",
+                            "data-component-name": "p",
+                            "data-component-content": "%7B%22text%22%3A%22Ocorreu%20um%20erro%20que%20impediu%20o%20carregamento%20do%20aplicativo.%22%2C%22className%22%3A%22text-gray-700%20dark%3Atext-gray-300%20mb-4%22%7D",
+                            className: "text-gray-700 dark:text-gray-300 mb-4",
+                            children: "Ocorreu um erro que impediu o carregamento do aplicativo."
+                        }, void 0, false, {
+                            fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                            lineNumber: 91,
+                            columnNumber: 13
+                        }, this),
+                        /*#__PURE__*/ _jsxDEV("div", {
+                            "data-lov-id": "src\\App.tsx:94:12",
+                            "data-lov-name": "div",
+                            "data-component-path": "src\\App.tsx",
+                            "data-component-line": "94",
+                            "data-component-file": "App.tsx",
+                            "data-component-name": "div",
+                            "data-component-content": "%7B%22className%22%3A%22mb-4%22%7D",
+                            className: "mb-4",
+                            children: /*#__PURE__*/ _jsxDEV("p", {
+                                "data-lov-id": "src\\App.tsx:95:14",
+                                "data-lov-name": "p",
+                                "data-component-path": "src\\App.tsx",
+                                "data-component-line": "95",
+                                "data-component-file": "App.tsx",
+                                "data-component-name": "p",
+                                "data-component-content": "%7B%22text%22%3A%22Detalhes%20do%20erro%3A%22%2C%22className%22%3A%22font-medium%20text-gray-800%20dark%3Atext-gray-200%20mb-2%22%7D",
+                                className: "font-medium text-gray-800 dark:text-gray-200 mb-2",
+                                children: [
+                                    "Detalhes do erro: ",
+                                    this.state.error?.message
+                                ]
+                            }, void 0, true, {
+                                fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                                lineNumber: 95,
+                                columnNumber: 15
+                            }, this)
+                        }, void 0, false, {
+                            fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                            lineNumber: 94,
+                            columnNumber: 13
+                        }, this),
+                        /*#__PURE__*/ _jsxDEV("button", {
+                            "data-lov-id": "src\\App.tsx:99:12",
+                            "data-lov-name": "button",
+                            "data-component-path": "src\\App.tsx",
+                            "data-component-line": "99",
+                            "data-component-file": "App.tsx",
+                            "data-component-name": "button",
+                            "data-component-content": "%7B%22text%22%3A%22Recarregar%20Aplicativo%22%2C%22className%22%3A%22w-full%20px-4%20py-2%20mb-4%20text-white%20bg-blue-600%20rounded%20hover%3Abg-blue-700%20transition-colors%22%7D",
+                            onClick: ()=>window.location.reload(),
+                            className: "w-full px-4 py-2 mb-4 text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors",
+                            children: "Recarregar Aplicativo"
+                        }, void 0, false, {
+                            fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                            lineNumber: 99,
+                            columnNumber: 13
+                        }, this),
+                        /*#__PURE__*/ _jsxDEV("button", {
+                            "data-lov-id": "src\\App.tsx:105:12",
+                            "data-lov-name": "button",
+                            "data-component-path": "src\\App.tsx",
+                            "data-component-line": "105",
+                            "data-component-file": "App.tsx",
+                            "data-component-name": "button",
+                            "data-component-content": "%7B%22text%22%3A%22Limpar%20Cache%20e%20Recarregar%22%2C%22className%22%3A%22w-full%20px-4%20py-2%20mb-4%20text-white%20bg-gray-600%20rounded%20hover%3Abg-gray-700%20transition-colors%22%7D",
+                            onClick: ()=>{
+                                localStorage.clear();
+                                sessionStorage.clear();
+                                window.location.reload();
+                            },
+                            className: "w-full px-4 py-2 mb-4 text-white bg-gray-600 rounded hover:bg-gray-700 transition-colors",
+                            children: "Limpar Cache e Recarregar"
+                        }, void 0, false, {
+                            fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                            lineNumber: 105,
+                            columnNumber: 13
+                        }, this),
+                        errorLogs.length > 0 && /*#__PURE__*/ _jsxDEV("details", {
+                            "data-lov-id": "src\\App.tsx:116:14",
+                            "data-lov-name": "details",
+                            "data-component-path": "src\\App.tsx",
+                            "data-component-line": "116",
+                            "data-component-file": "App.tsx",
+                            "data-component-name": "details",
+                            "data-component-content": "%7B%22className%22%3A%22mt-4%22%7D",
+                            className: "mt-4",
+                            children: [
+                                /*#__PURE__*/ _jsxDEV("summary", {
+                                    "data-lov-id": "src\\App.tsx:117:16",
+                                    "data-lov-name": "summary",
+                                    "data-component-path": "src\\App.tsx",
+                                    "data-component-line": "117",
+                                    "data-component-file": "App.tsx",
+                                    "data-component-name": "summary",
+                                    "data-component-content": "%7B%22text%22%3A%22Ver%20logs%20de%20erro%20(%20)%22%2C%22className%22%3A%22cursor-pointer%20text-sm%20text-gray-700%20dark%3Atext-gray-300%20hover%3Atext-blue-600%20dark%3Ahover%3Atext-blue-400%22%7D",
+                                    className: "cursor-pointer text-sm text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400",
+                                    children: [
+                                        "Ver logs de erro (",
+                                        errorLogs.length,
+                                        ")"
+                                    ]
+                                }, void 0, true, {
+                                    fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                                    lineNumber: 117,
+                                    columnNumber: 17
+                                }, this),
+                                /*#__PURE__*/ _jsxDEV("div", {
+                                    "data-lov-id": "src\\App.tsx:120:16",
+                                    "data-lov-name": "div",
+                                    "data-component-path": "src\\App.tsx",
+                                    "data-component-line": "120",
+                                    "data-component-file": "App.tsx",
+                                    "data-component-name": "div",
+                                    "data-component-content": "%7B%22className%22%3A%22mt-2%20p-2%20bg-gray-100%20dark%3Abg-gray-900%20rounded%20text-xs%20overflow-auto%20max-h-48%22%7D",
+                                    className: "mt-2 p-2 bg-gray-100 dark:bg-gray-900 rounded text-xs overflow-auto max-h-48",
+                                    children: errorLogs.map((log, index)=>/*#__PURE__*/ _jsxDEV("p", {
+                                            "data-lov-id": "src\\App.tsx:122:20",
+                                            "data-lov-name": "p",
+                                            "data-component-path": "src\\App.tsx",
+                                            "data-component-line": "122",
+                                            "data-component-file": "App.tsx",
+                                            "data-component-name": "p",
+                                            "data-component-content": "%7B%22className%22%3A%22whitespace-normal%20break-words%20mb-1%22%7D",
+                                            className: "whitespace-normal break-words mb-1",
+                                            children: log
+                                        }, index, false, {
+                                            fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                                            lineNumber: 122,
+                                            columnNumber: 21
+                                        }, this))
+                                }, void 0, false, {
+                                    fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                                    lineNumber: 120,
+                                    columnNumber: 17
+                                }, this)
+                            ]
+                        }, void 0, true, {
+                            fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                            lineNumber: 116,
+                            columnNumber: 15
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                    lineNumber: 87,
+                    columnNumber: 11
+                }, this)
+            }, void 0, false, {
+                fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                lineNumber: 86,
+                columnNumber: 9
+            }, this);
+        }
+        return this.props.children;
+    }
+    constructor(props){
+        super(props);
+        this.state = {
+            hasError: false,
+            error: null,
+            errorInfo: null,
+            errorLogs: null
+        };
+    }
+}
+// Componente de carregamento
+const LoadingScreen = ()=>/*#__PURE__*/ _jsxDEV("div", {
+        "data-lov-id": "src\\App.tsx:140:2",
+        "data-lov-name": "div",
+        "data-component-path": "src\\App.tsx",
+        "data-component-line": "140",
+        "data-component-file": "App.tsx",
+        "data-component-name": "div",
+        "data-component-content": "%7B%22className%22%3A%22flex%20justify-center%20items-center%20h-screen%20bg-white%20dark%3Abg-gray-900%22%7D",
+        className: "flex justify-center items-center h-screen bg-white dark:bg-gray-900",
+        children: /*#__PURE__*/ _jsxDEV("div", {
+            "data-lov-id": "src\\App.tsx:141:4",
+            "data-lov-name": "div",
+            "data-component-path": "src\\App.tsx",
+            "data-component-line": "141",
+            "data-component-file": "App.tsx",
+            "data-component-name": "div",
+            "data-component-content": "%7B%22className%22%3A%22animate-spin%20rounded-full%20h-12%20w-12%20border-b-2%20border-blue-600%22%7D",
+            className: "animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"
+        }, void 0, false, {
+            fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+            lineNumber: 141,
+            columnNumber: 5
+        }, this)
+    }, void 0, false, {
+        fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+        lineNumber: 140,
+        columnNumber: 3
+    }, this);
+_c = LoadingScreen;
+// Componente principal do aplicativo
+const App = ()=>{
+    _s();
+    const [isInitialized, setIsInitialized] = useState(false);
+    // Simular tempo de carregamento para evitar flashes de UI
+    useEffect(()=>{
+        const timer = setTimeout(()=>{
+            setIsInitialized(true);
+        }, LOADING_DELAY_MS);
+        return ()=>{
+            clearTimeout(timer);
+        };
+    }, []);
+    // Mostrar tela de carregamento enquanto inicializa
+    if (!isInitialized) {
+        return /*#__PURE__*/ _jsxDEV(LoadingScreen, {
+            "data-lov-id": "src\\App.tsx:162:11",
+            "data-lov-name": "LoadingScreen",
+            "data-component-path": "src\\App.tsx",
+            "data-component-line": "162",
+            "data-component-file": "App.tsx",
+            "data-component-name": "LoadingScreen",
+            "data-component-content": "%7B%7D"
+        }, void 0, false, {
+            fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+            lineNumber: 162,
+            columnNumber: 12
+        }, this);
+    }
+    return /*#__PURE__*/ _jsxDEV(ErrorBoundary, {
+        "data-lov-id": "src\\App.tsx:166:4",
+        "data-lov-name": "ErrorBoundary",
+        "data-component-path": "src\\App.tsx",
+        "data-component-line": "166",
+        "data-component-file": "App.tsx",
+        "data-component-name": "ErrorBoundary",
+        "data-component-content": "%7B%7D",
+        children: /*#__PURE__*/ _jsxDEV(QueryClientProvider, {
+            "data-lov-id": "src\\App.tsx:167:6",
+            "data-lov-name": "QueryClientProvider",
+            "data-component-path": "src\\App.tsx",
+            "data-component-line": "167",
+            "data-component-file": "App.tsx",
+            "data-component-name": "QueryClientProvider",
+            "data-component-content": "%7B%7D",
+            client: queryClient,
+            children: /*#__PURE__*/ _jsxDEV(ThemeProvider, {
+                "data-lov-id": "src\\App.tsx:168:8",
+                "data-lov-name": "ThemeProvider",
+                "data-component-path": "src\\App.tsx",
+                "data-component-line": "168",
+                "data-component-file": "App.tsx",
+                "data-component-name": "ThemeProvider",
+                "data-component-content": "%7B%7D",
+                defaultTheme: "light",
+                children: /*#__PURE__*/ _jsxDEV(TooltipProvider, {
+                    "data-lov-id": "src\\App.tsx:169:10",
+                    "data-lov-name": "TooltipProvider",
+                    "data-component-path": "src\\App.tsx",
+                    "data-component-line": "169",
+                    "data-component-file": "App.tsx",
+                    "data-component-name": "TooltipProvider",
+                    "data-component-content": "%7B%7D",
+                    children: /*#__PURE__*/ _jsxDEV(AuthProvider, {
+                        "data-lov-id": "src\\App.tsx:170:12",
+                        "data-lov-name": "AuthProvider",
+                        "data-component-path": "src\\App.tsx",
+                        "data-component-line": "170",
+                        "data-component-file": "App.tsx",
+                        "data-component-name": "AuthProvider",
+                        "data-component-content": "%7B%7D",
+                        children: /*#__PURE__*/ _jsxDEV(AppProvider, {
+                            "data-lov-id": "src\\App.tsx:171:14",
+                            "data-lov-name": "AppProvider",
+                            "data-component-path": "src\\App.tsx",
+                            "data-component-line": "171",
+                            "data-component-file": "App.tsx",
+                            "data-component-name": "AppProvider",
+                            "data-component-content": "%7B%7D",
+                            children: /*#__PURE__*/ _jsxDEV(TaskProvider, {
+                                "data-lov-id": "src\\App.tsx:172:16",
+                                "data-lov-name": "TaskProvider",
+                                "data-component-path": "src\\App.tsx",
+                                "data-component-line": "172",
+                                "data-component-file": "App.tsx",
+                                "data-component-name": "TaskProvider",
+                                "data-component-content": "%7B%7D",
+                                children: /*#__PURE__*/ _jsxDEV(NotificationProvider, {
+                                    "data-lov-id": "src\\App.tsx:173:18",
+                                    "data-lov-name": "NotificationProvider",
+                                    "data-component-path": "src\\App.tsx",
+                                    "data-component-line": "173",
+                                    "data-component-file": "App.tsx",
+                                    "data-component-name": "NotificationProvider",
+                                    "data-component-content": "%7B%7D",
+                                    children: [
+                                        /*#__PURE__*/ _jsxDEV(Toaster, {
+                                            "data-lov-id": "src\\App.tsx:174:20",
+                                            "data-lov-name": "Toaster",
+                                            "data-component-path": "src\\App.tsx",
+                                            "data-component-line": "174",
+                                            "data-component-file": "App.tsx",
+                                            "data-component-name": "Toaster",
+                                            "data-component-content": "%7B%7D"
+                                        }, void 0, false, {
+                                            fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                                            lineNumber: 174,
+                                            columnNumber: 21
+                                        }, this),
+                                        /*#__PURE__*/ _jsxDEV(Sonner, {
+                                            "data-lov-id": "src\\App.tsx:175:20",
+                                            "data-lov-name": "Sonner",
+                                            "data-component-path": "src\\App.tsx",
+                                            "data-component-line": "175",
+                                            "data-component-file": "App.tsx",
+                                            "data-component-name": "Sonner",
+                                            "data-component-content": "%7B%7D"
+                                        }, void 0, false, {
+                                            fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                                            lineNumber: 175,
+                                            columnNumber: 21
+                                        }, this),
+                                        /*#__PURE__*/ _jsxDEV(BrowserRouter, {
+                                            "data-lov-id": "src\\App.tsx:176:20",
+                                            "data-lov-name": "BrowserRouter",
+                                            "data-component-path": "src\\App.tsx",
+                                            "data-component-line": "176",
+                                            "data-component-file": "App.tsx",
+                                            "data-component-name": "BrowserRouter",
+                                            "data-component-content": "%7B%7D",
+                                            children: /*#__PURE__*/ _jsxDEV(Routes, {
+                                                "data-lov-id": "src\\App.tsx:177:22",
+                                                "data-lov-name": "Routes",
+                                                "data-component-path": "src\\App.tsx",
+                                                "data-component-line": "177",
+                                                "data-component-file": "App.tsx",
+                                                "data-component-name": "Routes",
+                                                "data-component-content": "%7B%7D",
+                                                children: [
+                                                    /*#__PURE__*/ _jsxDEV(Route, {
+                                                        "data-lov-id": "src\\App.tsx:179:24",
+                                                        "data-lov-name": "Route",
+                                                        "data-component-path": "src\\App.tsx",
+                                                        "data-component-line": "179",
+                                                        "data-component-file": "App.tsx",
+                                                        "data-component-name": "Route",
+                                                        "data-component-content": "%7B%7D",
+                                                        path: "/",
+                                                        element: /*#__PURE__*/ _jsxDEV(Index, {
+                                                            "data-lov-id": "src\\App.tsx:179:49",
+                                                            "data-lov-name": "Index",
+                                                            "data-component-path": "src\\App.tsx",
+                                                            "data-component-line": "179",
+                                                            "data-component-file": "App.tsx",
+                                                            "data-component-name": "Index",
+                                                            "data-component-content": "%7B%7D"
+                                                        }, void 0, false, {
+                                                            fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                                                            lineNumber: 179,
+                                                            columnNumber: 256
+                                                        }, void 0)
+                                                    }, void 0, false, {
+                                                        fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                                                        lineNumber: 179,
+                                                        columnNumber: 25
+                                                    }, this),
+                                                    /*#__PURE__*/ _jsxDEV(Route, {
+                                                        "data-lov-id": "src\\App.tsx:180:24",
+                                                        "data-lov-name": "Route",
+                                                        "data-component-path": "src\\App.tsx",
+                                                        "data-component-line": "180",
+                                                        "data-component-file": "App.tsx",
+                                                        "data-component-name": "Route",
+                                                        "data-component-content": "%7B%7D",
+                                                        path: "/login",
+                                                        element: /*#__PURE__*/ _jsxDEV(Login, {
+                                                            "data-lov-id": "src\\App.tsx:180:54",
+                                                            "data-lov-name": "Login",
+                                                            "data-component-path": "src\\App.tsx",
+                                                            "data-component-line": "180",
+                                                            "data-component-file": "App.tsx",
+                                                            "data-component-name": "Login",
+                                                            "data-component-content": "%7B%7D"
+                                                        }, void 0, false, {
+                                                            fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                                                            lineNumber: 180,
+                                                            columnNumber: 261
+                                                        }, void 0)
+                                                    }, void 0, false, {
+                                                        fileName: "E:/APLICATIVOS WEB/organizador de tarefas ok/src/App.tsx",
+                                                        lineNumber: 180,
+                                                        columnNumber: 25
+                                                    }, this),
+                                                    /*#__PURE__*/ _jsxDEV(Route, {
+                                                        "data-lov-id": "src\\App.tsx:183:24",
+                                                        "data-lov-name": "Route",
+                                                        "data-component-path": "src\\App.tsx",
+                                                        "data-component-line": "183",
+                                                        "data-component-file": "App.tsx",
+                                                        "data-component-name": "Route",
+                                                        "data-component-content": "%7B%7D",
+                                                        path: "/dashboard",
+                                                        element: /*#__PURE__*/ _jsxDEV(Layout, {
+                                                            "data-lov-id": "src\\App.tsx:184:26",
+                                                            "data-lov-name": "Layout",
+                                                            "data-component-path": "src\\App.tsx",
+                                                            "data-component-line": "184",
+                                                            "data-component-file": "App.tsx",
+                                                            "data-component-name": "Layout",
+                                                            "data-component-content": "%7B%7D",
+                                                            children: /*#__PURE__*/ _jsxDEV(AuthGuard, {
+                                                                "data-lov-id": "src\\App.tsx:185:28",
+                                                                "data-lov-name": "AuthGuard",
+                                                                "data-component-path": "src\\App.tsx",
+                                                                "data-component-line": "185",
+                                                                "data-component-file": "App.tsx",
+                                                                "data-component-name": "AuthGuard",
+                                                                "data-component-content": "%7B%7D",
+                                                                chi

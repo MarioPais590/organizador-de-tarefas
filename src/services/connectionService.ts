@@ -5,7 +5,7 @@
 
 import { appLogger } from '@/utils/logger';
 import { logPushError, PushErrorType } from './errorMonitoringService';
-import { solicitarSincronizacao } from '../serviceWorkerRegistration';
+import { solicitarSincronizacao } from './serviceWorkerRegistration';
 
 // Tipos de estados de conexão
 export enum ConnectionState {

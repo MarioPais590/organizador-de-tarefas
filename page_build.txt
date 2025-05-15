@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Organizador de Tarefas</title>
+    <meta name="description" content="Aplicativo pessoal de organização de tarefas" />
+    <meta name="author" content="Lovable" />
+
+    <!-- PWA metadados -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#3a86ff" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Organizador de Tarefas" />
+    
+    <!-- Favicon e ícones para dispositivos -->
+    <link rel="icon" type="image/png" href="/icons/icon-192x192.png" />
+    <link rel="shortcut icon" href="/icons/icon-192x192.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-192x192.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/icons/icon-152x152.png" />
+    <script type="module" crossorigin src="/assets/index-Cmo7O4xm.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-C4NrBsIr.css">
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
+    <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
+    
+    <!-- Fallback para navegadores que não suportam Service Workers -->
+    <noscript>
+      <div style="padding: 20px; text-align: center;">
+        Este aplicativo requer JavaScript para funcionar corretamente.
+      </div>
+    </noscript>
+  </body>
+</html>
