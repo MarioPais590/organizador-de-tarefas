@@ -2,62 +2,123 @@
  * Sistema de logs centralizado para facilitar a depuração
  */
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+/**
+ * Camada de abstração para logs da aplicação
+ * Permite controlar o nível de log por ambiente e por namespace
+ */
 
-interface LoggerOptions {
-  enabled: boolean;
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+interface LogEntry {
+  timestamp: number;
   level: LogLevel;
-  prefix?: string;
-  persistToStorage?: boolean;
-  storageKey?: string;
-  maxLogEntries?: number;
+  message: string;
+  data?: any;
 }
 
-const DEFAULT_OPTIONS: LoggerOptions = {
-  enabled: true,
-  level: 'debug',
-  prefix: '[App]',
-  persistToStorage: true,
-  storageKey: 'app_logs',
-  maxLogEntries: 100
-};
+interface LoggerOptions {
+  minLevel?: LogLevel;
+  enabled?: boolean;
+  persistToStorage?: boolean;
+  maxLogEntries?: number;
+  namespace?: string;
+  productionMode?: boolean;
+}
+
+// Definir se estamos em produção baseado no ambiente
+const isProduction = process.env.NODE_ENV === 'production';
 
 class Logger {
   private options: LoggerOptions;
-  private logHistory: Array<{
-    timestamp: number;
-    level: LogLevel;
-    message: string;
-    data?: any;
-  }> = [];
+  private logHistory: LogEntry[] = [];
+  private namespace: string = '';
 
-  constructor(options: Partial<LoggerOptions> = {}) {
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+  constructor(options: LoggerOptions = {}) {
+    // Definir opções padrão
+    this.options = {
+      minLevel: 'info',
+      enabled: true,
+      persistToStorage: false,
+      maxLogEntries: 100,
+      namespace: '',
+      productionMode: isProduction,
+      ...options
+    };
     
-    // Carregar logs do storage se necessário
-    if (this.options.persistToStorage) {
-      this.loadFromStorage();
+    this.namespace = this.options.namespace || '';
+    
+    // Em produção, definir nível mínimo para erro
+    if (this.options.productionMode && !options.minLevel) {
+      this.options.minLevel = 'error';
     }
   }
 
-  private get isDebugEnabled(): boolean {
-    return this.options.enabled && ['debug', 'info', 'warn', 'error'].includes(this.options.level);
+  createNamespace(namespace: string): Logger {
+    return new Logger({
+      ...this.options,
+      namespace
+    });
   }
 
-  private get isInfoEnabled(): boolean {
-    return this.options.enabled && ['info', 'warn', 'error'].includes(this.options.level);
+  debug(message: string, data?: any): void {
+    this.log('debug', message, data);
   }
 
-  private get isWarnEnabled(): boolean {
-    return this.options.enabled && ['warn', 'error'].includes(this.options.level);
+  info(message: string, data?: any): void {
+    this.log('info', message, data);
   }
 
-  private get isErrorEnabled(): boolean {
-    return this.options.enabled && ['error'].includes(this.options.level);
+  warn(message: string, data?: any): void {
+    this.log('warn', message, data);
   }
 
-  private formatMessage(message: string): string {
-    return `${this.options.prefix} ${message}`;
+  error(message: string, data?: any): void {
+    this.log('error', message, data);
+  }
+
+  private shouldLog(level: LogLevel): boolean {
+    const levels: Record<LogLevel, number> = {
+      debug: 0,
+      info: 1,
+      warn: 2,
+      error: 3
+    };
+    
+    if (!this.options.enabled) return false;
+    
+    // Se estivermos em produção, apenas permitir logs de erro, a menos que seja explicitamente definido
+    if (this.options.productionMode && this.options.minLevel !== 'debug' && this.options.minLevel !== 'info' && this.options.minLevel !== 'warn') {
+      return level === 'error';
+    }
+    
+    return levels[level] >= levels[this.options.minLevel || 'info'];
+  }
+
+  private log(level: LogLevel, message: string, data?: any): void {
+    if (!this.shouldLog(level)) return;
+    
+    const formattedMessage = this.namespace 
+      ? `[${this.namespace}] ${message}`
+      : message;
+    
+    // Adicionar à história de logs
+    this.addToHistory(level, formattedMessage, data);
+    
+    // Enviar para o console
+    switch (level) {
+      case 'debug':
+        console.debug(formattedMessage, data || '');
+        break;
+      case 'info':
+        console.info(formattedMessage, data || '');
+        break;
+      case 'warn':
+        console.warn(formattedMessage, data || '');
+        break;
+      case 'error':
+        console.error(formattedMessage, data || '');
+        break;
+    }
   }
 
   private addToHistory(level: LogLevel, message: string, data?: any): void {
@@ -80,97 +141,73 @@ class Logger {
   }
 
   private saveToStorage(): void {
-    try {
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(
-          this.options.storageKey || 'app_logs',
-          JSON.stringify(this.logHistory)
-        );
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const storageKey = this.namespace 
+          ? `app_logs_${this.namespace}`
+          : 'app_logs';
+        
+        localStorage.setItem(storageKey, JSON.stringify(this.logHistory));
+      } catch (e) {
+        // Falha ao persistir logs - provavelmente problema de espaço ou permissão
+        console.error('Falha ao persistir logs no localStorage', e);
       }
-    } catch (error) {
-      console.error('Falha ao salvar logs no storage:', error);
     }
   }
 
-  private loadFromStorage(): void {
-    try {
-      if (typeof localStorage !== 'undefined') {
-        const logs = localStorage.getItem(this.options.storageKey || 'app_logs');
-        if (logs) {
-          this.logHistory = JSON.parse(logs);
-        }
-      }
-    } catch (error) {
-      console.error('Falha ao carregar logs do storage:', error);
-    }
-  }
-
-  debug(message: string, ...data: any[]): void {
-    if (this.isDebugEnabled) {
-      console.debug(this.formatMessage(message), ...data);
-      this.addToHistory('debug', message, data.length ? data : undefined);
-    }
-  }
-
-  info(message: string, ...data: any[]): void {
-    if (this.isInfoEnabled) {
-      console.info(this.formatMessage(message), ...data);
-      this.addToHistory('info', message, data.length ? data : undefined);
-    }
-  }
-
-  warn(message: string, ...data: any[]): void {
-    if (this.isWarnEnabled) {
-      console.warn(this.formatMessage(message), ...data);
-      this.addToHistory('warn', message, data.length ? data : undefined);
-    }
-  }
-
-  error(message: string, ...data: any[]): void {
-    if (this.isErrorEnabled) {
-      console.error(this.formatMessage(message), ...data);
-      this.addToHistory('error', message, data.length ? data : undefined);
-    }
-  }
-
-  getHistory(level?: LogLevel): Array<{
-    timestamp: number;
-    level: LogLevel;
-    message: string;
-    data?: any;
-  }> {
-    if (level) {
-      return this.logHistory.filter(entry => entry.level === level);
-    }
-    return this.logHistory;
+  getLogHistory(): LogEntry[] {
+    return [...this.logHistory];
   }
 
   clearHistory(): void {
     this.logHistory = [];
+    
     if (this.options.persistToStorage && typeof localStorage !== 'undefined') {
-      localStorage.removeItem(this.options.storageKey || 'app_logs');
+      const storageKey = this.namespace 
+        ? `app_logs_${this.namespace}`
+        : 'app_logs';
+      
+      localStorage.removeItem(storageKey);
     }
   }
-
+  
   /**
-   * Cria uma instância derivada do logger com prefixo personalizado
+   * Configura o modo de produção (reduz logs significativamente)
    */
-  createNamespace(namespace: string): Logger {
-    return new Logger({
-      ...this.options,
-      prefix: `${this.options.prefix}:${namespace}`
-    });
+  setProductionMode(enabled: boolean): void {
+    this.options.productionMode = enabled;
+    
+    // Em produção, permitir apenas logs de erro por padrão
+    if (enabled && this.options.minLevel === 'info') {
+      this.options.minLevel = 'error';
+    }
+  }
+  
+  /**
+   * Ativa/desativa todos os logs
+   */
+  setEnabled(enabled: boolean): void {
+    this.options.enabled = enabled;
+  }
+  
+  /**
+   * Define o nível mínimo de log
+   */
+  setMinLevel(level: LogLevel): void {
+    this.options.minLevel = level;
   }
 }
 
-// Instância global do logger
-export const logger = new Logger();
+// Criar instância global do logger
+export const logger = new Logger({
+  minLevel: isProduction ? 'error' : 'debug',
+  enabled: true,
+  persistToStorage: false,
+  productionMode: isProduction
+});
 
-// Namespaces específicos pré-configurados
+// Criar instância específica para logs da aplicação
 export const appLogger = logger.createNamespace('App');
-export const authLogger = logger.createNamespace('Auth');
-export const apiLogger = logger.createNamespace('API');
-export const pwaLogger = logger.createNamespace('PWA');
-export const storageLogger = logger.createNamespace('Storage');
 
+// Exportar logger como padrão
 export default logger; 
