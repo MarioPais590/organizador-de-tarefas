@@ -452,6 +452,47 @@ export function setupBackgroundDetection() {
 }
 
 /**
+ * Inicia os serviços de notificação push ao carregar a aplicação
+ * Esta função é chamada pelo main.tsx durante a inicialização
+ */
+export async function startPushServices(): Promise<boolean> {
+  try {
+    appLogger.info('Iniciando serviços de notificação push');
+    
+    // Verificar se o navegador suporta notificações
+    const { supported, partial } = supportsBackgroundNotifications();
+    
+    if (!supported && !partial) {
+      appLogger.warn('Este dispositivo não suporta notificações push');
+      return false;
+    }
+    
+    // Configurar detecção de segundo plano independente de permissões
+    setupBackgroundDetection();
+    
+    // Se o usuário já concedeu permissão, inicializar automaticamente
+    if (Notification.permission === 'granted') {
+      appLogger.info('Permissão para notificações já concedida, inicializando serviços');
+      return await initPushService();
+    } else if (isPWA) {
+      // No PWA, solicitar permissão automaticamente ao iniciar
+      appLogger.info('Aplicativo instalado como PWA, solicitando permissão para notificações');
+      const permission = await requestNotificationPermission();
+      
+      if (permission === 'granted') {
+        return await initPushService();
+      }
+    }
+    
+    appLogger.info('Serviços de notificação push configurados para solicitar permissão quando necessário');
+    return true;
+  } catch (error) {
+    appLogger.error('Erro ao iniciar serviços de notificação push:', error);
+    return false;
+  }
+}
+
+/**
  * Enviar subscription para o servidor (simulado)
  */
 async function sendSubscriptionToServer(subscription: PushSubscription): Promise<boolean> {
