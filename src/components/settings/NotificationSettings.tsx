@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -21,6 +21,28 @@ import {
   isPWA
 } from '@/services/pushService';
 
+// Função de utilidade para comparar objetos profundamente
+const deepEqual = (obj1: any, obj2: any): boolean => {
+  if (obj1 === obj2) return true;
+  
+  if (typeof obj1 !== 'object' || obj1 === null || 
+      typeof obj2 !== 'object' || obj2 === null) {
+    return false;
+  }
+  
+  const keys1 = Object.keys(obj1);
+  const keys2 = Object.keys(obj2);
+  
+  if (keys1.length !== keys2.length) return false;
+  
+  for (const key of keys1) {
+    if (!keys2.includes(key)) return false;
+    if (!deepEqual(obj1[key], obj2[key])) return false;
+  }
+  
+  return true;
+};
+
 export const NotificationSettings: React.FC = () => {
   const { verificarSuporte, solicitarPermissao, permissaoNotificacoes, configuracoes, atualizarConfiguracoes, dispositivo } = useNotification();
   const { configNotificacoes, atualizarConfigNotificacoes } = useApp();
@@ -28,6 +50,11 @@ export const NotificationSettings: React.FC = () => {
   const [suporte, setSuporteAtivo] = useState(false);
   const [iniciando, setIniciando] = useState(true);
   const [pushIniciado, setPushIniciado] = useState(false);
+  
+  // Referências para controlar as atualizações
+  const prevConfiguracoes = useRef(configuracoes);
+  const prevConfigNotificacoes = useRef(configNotificacoes);
+  const syncingRef = useRef(false);
   
   // Verificar suporte e status do PWA
   const { supported: pushSupported, partial: partialPushSupport, reason: pushSupportReason } = supportsBackgroundNotifications();
@@ -56,11 +83,49 @@ export const NotificationSettings: React.FC = () => {
   
   // Garantir sincronização entre contextos
   useEffect(() => {
-    // Somente sincronizar quando não estiver iniciando
-    if (!iniciando) {
+    // Prevenir loop infinito e atualizações desnecessárias
+    if (iniciando || syncingRef.current) return;
+    
+    // Verificar se as configurações realmente mudaram usando comparação profunda
+    if (!deepEqual(configuracoes, prevConfigNotificacoes.current)) {
+      console.log('Sincronizando configurações do NotificationContext para AppContext');
+      syncingRef.current = true;
+      
+      // Atualizar a referência
+      prevConfigNotificacoes.current = configuracoes;
+      
+      // Atualizar o contexto do App
       atualizarConfigNotificacoes(configuracoes);
+      
+      // Liberar flag após um pequeno atraso para garantir que as atualizações foram processadas
+      setTimeout(() => {
+        syncingRef.current = false;
+      }, 100);
     }
   }, [configuracoes, atualizarConfigNotificacoes, iniciando]);
+  
+  // Sincronização no sentido inverso (AppContext -> NotificationContext)
+  useEffect(() => {
+    // Prevenir loop infinito e atualizações desnecessárias
+    if (iniciando || syncingRef.current) return;
+    
+    // Verificar se as configurações realmente mudaram usando comparação profunda
+    if (!deepEqual(configNotificacoes, prevConfiguracoes.current)) {
+      console.log('Sincronizando configurações do AppContext para NotificationContext');
+      syncingRef.current = true;
+      
+      // Atualizar a referência
+      prevConfiguracoes.current = configNotificacoes;
+      
+      // Atualizar o contexto de Notificação
+      atualizarConfiguracoes(configNotificacoes);
+      
+      // Liberar flag após um pequeno atraso para garantir que as atualizações foram processadas
+      setTimeout(() => {
+        syncingRef.current = false;
+      }, 100);
+    }
+  }, [configNotificacoes, atualizarConfiguracoes, iniciando]);
   
   // Efeito para verificar persistência de configurações no iOS
   useEffect(() => {

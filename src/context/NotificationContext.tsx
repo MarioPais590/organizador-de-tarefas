@@ -99,6 +99,22 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setConfiguracoes(prev => {
       const novasConfiguracoes = { ...prev, ...config };
       
+      // Verificar se realmente houve mudanças para evitar atualizações desnecessárias
+      const houveMudanca = Object.keys(config).some(key => {
+        // @ts-ignore - Esta comparação simplificada é suficiente para este caso
+        if (key === 'antecedencia' && config.antecedencia) {
+          return config.antecedencia.valor !== prev.antecedencia.valor || 
+                 config.antecedencia.unidade !== prev.antecedencia.unidade;
+        }
+        // @ts-ignore - Esta comparação simplificada é suficiente para este caso
+        return config[key] !== prev[key];
+      });
+      
+      // Se não houver mudanças reais, retornar o estado anterior para evitar re-renderizações
+      if (!houveMudanca) {
+        return prev;
+      }
+      
       console.log('Atualizando configurações de notificação:', novasConfiguracoes);
       
       // Salvar imediatamente no localStorage

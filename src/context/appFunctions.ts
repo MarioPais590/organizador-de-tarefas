@@ -451,6 +451,35 @@ export const createAppFunctions = (
     }
   };
 
+  // Função utilitária para comparação profunda
+  const configsAreEqual = (config1: Partial<ConfiguracoesNotificacao>, config2: ConfiguracoesNotificacao): boolean => {
+    // Verificar campo ativadas
+    if (config1.ativadas !== undefined && config1.ativadas !== config2.ativadas) {
+      return false;
+    }
+    
+    // Verificar campo comSom
+    if (config1.comSom !== undefined && config1.comSom !== config2.comSom) {
+      return false;
+    }
+    
+    // Verificar campos de antecedência
+    if (config1.antecedencia) {
+      if (config1.antecedencia.valor !== undefined && 
+          config1.antecedencia.valor !== config2.antecedencia.valor) {
+        return false;
+      }
+      
+      if (config1.antecedencia.unidade !== undefined && 
+          config1.antecedencia.unidade !== config2.antecedencia.unidade) {
+        return false;
+      }
+    }
+    
+    // Se chegou até aqui, não há diferenças significativas
+    return true;
+  };
+
   // Funções para configurações de notificação
   const atualizarConfigNotificacoes = async (config: Partial<ConfiguracoesNotificacao>, showToast: boolean = true) => {
     try {
@@ -459,8 +488,14 @@ export const createAppFunctions = (
         return false;
       }
       
-      console.log("Atualizando configurações de notificação:", config);
-      console.log("Configurações atuais:", configNotificacoes);
+      // Verificar se há mudanças reais para evitar atualizações desnecessárias
+      if (configsAreEqual(config, configNotificacoes)) {
+        console.log("Nenhuma mudança detectada nas configurações, ignorando atualização");
+        return true;
+      }
+      
+      // Log conciso das configurações
+      console.log("Atualizando configurações de notificação:", JSON.stringify(config));
       
       // Verificar se notificações estão sendo ativadas
       if (config.ativadas === true && configNotificacoes.ativadas === false) {
@@ -517,7 +552,6 @@ export const createAppFunctions = (
           }
           
           dadosParaAtualizar.antecedencia_valor = valor;
-          console.log(`Atualizando valor de antecedência para: ${valor}`);
         }
         
         if (config.antecedencia.unidade !== undefined) {
@@ -527,11 +561,8 @@ export const createAppFunctions = (
             : 'minutos';
             
           dadosParaAtualizar.antecedencia_unidade = unidade;
-          console.log(`Atualizando unidade de antecedência para: ${unidade}`);
         }
       }
-      
-      console.log("Dados para atualizar no Supabase:", dadosParaAtualizar);
       
       if (Object.keys(dadosParaAtualizar).length === 0) {
         console.log("Nenhum dado para atualizar");
@@ -550,13 +581,10 @@ export const createAppFunctions = (
         throw erroConsulta;
       }
       
-      console.log("Configuração existente:", existente);
-      
       let dadosAtualizados;
       
       // Inserir ou atualizar registro
       if (existente) {
-        console.log("Atualizando configuração existente");
         const { data, error } = await supabase
           .from('config_notificacoes')
           .update(dadosParaAtualizar)
@@ -569,18 +597,12 @@ export const createAppFunctions = (
         }
         
         dadosAtualizados = data;
-        console.log("Configuração atualizada no banco:", data);
       } else {
         // Garantir que temos valores completos para criação de configuração
         if (!dadosParaAtualizar.ativadas) dadosParaAtualizar.ativadas = configNotificacoes.ativadas;
         if (dadosParaAtualizar.com_som === undefined) dadosParaAtualizar.com_som = configNotificacoes.comSom;
         if (!dadosParaAtualizar.antecedencia_valor) dadosParaAtualizar.antecedencia_valor = configNotificacoes.antecedencia.valor;
         if (!dadosParaAtualizar.antecedencia_unidade) dadosParaAtualizar.antecedencia_unidade = configNotificacoes.antecedencia.unidade;
-        
-        console.log("Criando nova configuração com dados completos:", {
-          user_id: user.id,
-          ...dadosParaAtualizar
-        });
         
         const { data, error } = await supabase
           .from('config_notificacoes')
@@ -596,12 +618,10 @@ export const createAppFunctions = (
         }
         
         dadosAtualizados = data;
-        console.log("Nova configuração criada no banco:", data);
       }
       
       // Obter todas as configurações atualizadas do servidor para sincronizar o estado
       if (!dadosAtualizados || dadosAtualizados.length === 0) {
-        console.log("Buscando configurações atualizadas diretamente do servidor...");
         const { data: configAtualizada, error: errorBusca } = await supabase
           .from('config_notificacoes')
           .select('*')
@@ -628,8 +648,6 @@ export const createAppFunctions = (
           }
         };
         
-        console.log("Sincronizando estado com dados do servidor:", novasConfiguracoes);
-        
         // Definir estado diretamente com os valores do servidor
         setConfigNotificacoes(novasConfiguracoes);
       } else {
@@ -643,7 +661,6 @@ export const createAppFunctions = (
            config.antecedencia?.unidade !== undefined ||
            config.comSom !== undefined
          ))) {
-        console.log("Reiniciando serviço de notificações devido a alterações nas configurações");
         if (Notification.permission === "granted") {
           // Parar qualquer serviço anterior
           pararServicoNotificacoes();
