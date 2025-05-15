@@ -16,6 +16,7 @@ import {
   Shield 
 } from 'lucide-react';
 import { unregister } from '@/services/serviceWorkerRegistration';
+import { appLogger } from '@/utils/logger';
 
 export interface PWADiagnosticResult {
   supported: boolean;
@@ -147,6 +148,62 @@ export function PWADiagnostics() {
     }
   };
   
+  // Função para forçar atualização do Service Worker e limpar caches
+  const forceServiceWorkerUpdate = async () => {
+    try {
+      if (!('serviceWorker' in navigator)) {
+        appLogger.warn('Service Worker não suportado');
+        return;
+      }
+      
+      // Obter o registro atual
+      const registration = await navigator.serviceWorker.getRegistration();
+      
+      if (!registration) {
+        appLogger.warn('Nenhum Service Worker registrado');
+        // Tentar registrar novamente
+        if (confirm('Nenhum Service Worker registrado. Deseja registrar novamente?')) {
+          window.location.reload();
+        }
+        return;
+      }
+      
+      appLogger.info('Forçando atualização do Service Worker');
+      
+      // Limpar cache
+      if ('caches' in window) {
+        const cacheKeys = await caches.keys();
+        appLogger.info(`Limpando ${cacheKeys.length} caches`);
+        
+        await Promise.all(
+          cacheKeys.map(cacheName => {
+            appLogger.info(`Limpando cache: ${cacheName}`);
+            return caches.delete(cacheName);
+          })
+        );
+      }
+      
+      // Verificar se temos um Service Worker controlando a página
+      if (navigator.serviceWorker.controller) {
+        // Enviar mensagem para forçar ativação
+        navigator.serviceWorker.controller.postMessage({
+          type: 'FORCE_ACTIVATION'
+        });
+      }
+      
+      // Forçar atualização e recarregar
+      await registration.update();
+      appLogger.info('Service Worker atualizado');
+      
+      // Recarregar a página após pequeno atraso
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } catch (error) {
+      appLogger.error('Erro ao forçar atualização do Service Worker:', error);
+    }
+  };
+  
   const StatusIcon = ({ condition }: { condition: boolean }) => (
     condition ? 
       <CheckCircle className="h-5 w-5 text-green-500" /> : 
@@ -253,7 +310,7 @@ export function PWADiagnostics() {
               <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
               {refreshing ? 'Atualizando...' : 'Atualizar ícones'}
             </Button>
-            <Button variant="outline" onClick={resetServiceWorker}>
+            <Button variant="outline" onClick={forceServiceWorkerUpdate}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Reiniciar Service Worker
             </Button>

@@ -110,9 +110,31 @@ function setupServiceWorkerUpdates(registration: ServiceWorkerRegistration) {
           // Nova versão do Service Worker disponível
           appLogger.info('Nova versão do Service Worker disponível');
           
-          // Perguntar ao usuário se deseja atualizar
-          if (confirm('Nova versão do aplicativo disponível. Deseja atualizar agora?')) {
-            window.location.reload();
+          // Avisar o usuário sobre a nova versão
+          const mensagem = 'Nova versão do aplicativo disponível. Deseja atualizar agora?';
+          
+          if (confirm(mensagem)) {
+            // Limpar caches e recarregar
+            if ('caches' in window) {
+              caches.keys()
+                .then(cacheNames => {
+                  return Promise.all(
+                    cacheNames.map(cacheName => {
+                      appLogger.info(`Eliminando cache: ${cacheName}`);
+                      return caches.delete(cacheName);
+                    })
+                  );
+                })
+                .then(() => {
+                  window.location.reload();
+                })
+                .catch(err => {
+                  appLogger.error('Erro ao limpar caches:', err);
+                  window.location.reload();
+                });
+            } else {
+              window.location.reload();
+            }
           }
         } else {
           // Primeira vez que o Service Worker é instalado
@@ -123,11 +145,27 @@ function setupServiceWorkerUpdates(registration: ServiceWorkerRegistration) {
   };
   
   // Verificar atualizações periodicamente
-  setInterval(() => {
+  const intervalId = setInterval(() => {
+    appLogger.info('Verificando atualizações do Service Worker...');
     registration.update().catch(err => {
       appLogger.error('Erro ao verificar atualizações do Service Worker:', err);
     });
-  }, 60 * 60 * 1000); // Verificar a cada hora
+  }, 15 * 60 * 1000); // A cada 15 minutos
+  
+  // Verificar quando o aplicativo volta ao foco
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      appLogger.info('Aplicativo em foco, verificando atualizações...');
+      registration.update().catch(err => {
+        appLogger.error('Erro ao verificar atualizações após foco:', err);
+      });
+    }
+  });
+  
+  // Limpar intervalo quando a página é fechada
+  window.addEventListener('beforeunload', () => {
+    clearInterval(intervalId);
+  });
 }
 
 /**

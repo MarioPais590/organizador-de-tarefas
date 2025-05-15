@@ -207,149 +207,91 @@ export const verificarSuporteNotificacoes = (): boolean => {
 };
 
 /**
- * Solicita permissão para enviar notificações ao usuário
- * @returns Promessa que resolve para true se a permissão foi concedida
+ * Solicita permissão para enviar notificações
+ * @returns Promise<boolean> Retorna true se permissão foi concedida
  */
-export const solicitarPermissaoNotificacao = async (): Promise<boolean> => {
-  // Verificar se o navegador suporta notificações
+export async function solicitarPermissaoNotificacao(): Promise<boolean> {
   if (!verificarSuporteNotificacoes()) {
-    // Mostrar mensagens personalizadas de acordo com o dispositivo
-    const { isMobile, isIOS, isAndroid, navegador } = detectarDispositivoMovel();
-    
-    if (isIOS) {
-      // Instruções específicas para iOS
-      const isPwa = window.matchMedia('(display-mode: standalone)').matches || 
-                   (window.navigator as any).standalone === true;
-      
-      if (isPwa) {
-        toast.warning(
-          "O suporte a notificações no iOS pode ser inconsistente. Certifique-se de que o aplicativo esteja atualizado.", 
-          { duration: 6000 }
-        );
-      } else {
-        toast.error(
-          "Dispositivos iOS têm suporte limitado a notificações web. Para melhor experiência, adicione à tela inicial tocando no ícone de compartilhamento e depois 'Adicionar à Tela de Início'.", 
-          { duration: 8000 }
-        );
-      }
-    } else if (isAndroid) {
-      toast.warning(
-        "Para garantir notificações confiáveis, adicione esta aplicação à tela inicial ou use o Chrome.", 
-        { duration: 5000 }
-      );
-    } else if (isMobile) {
-      toast.error(
-        "Seu dispositivo móvel pode ter limitações com notificações. Considere adicionar à tela inicial ou usar um navegador compatível como Chrome.", 
-        { duration: 6000 }
-      );
-    } else {
-      toast.error(
-        "Seu navegador não suporta notificações ou está usando uma conexão não segura (HTTPS necessário).", 
-        { duration: 5000 }
-      );
-    }
-    
-    console.error(`Notificações não suportadas neste ambiente: ${navegador} em ${isIOS ? 'iOS' : isAndroid ? 'Android' : 'Desktop'}`);
+    console.warn('Navegador não suporta notificações');
     return false;
   }
   
-  const permissionStatus = Notification.permission as string;
-  
-  // Se já temos permissão, retornar
-  if (permissionStatus === "granted") {
-    window.notificacoesAtivas = true;
-    console.log("✅ Permissão de notificações já concedida");
-    return true;
-  }
-  
-  // Se já negada, avisar mas não solicitar novamente
-  if (permissionStatus === "denied") {
-    console.warn("❌ Permissão para notificações foi negada anteriormente");
-    toast.warning(
-      "Permissões de notificação estão bloqueadas. Você precisa permitir notificações nas configurações do navegador.",
-      { duration: 6000 }
-    );
-    window.notificacoesAtivas = false;
-    return false;
-  }
-  
-  // Em dispositivos móveis, fornecer instruções claras antes de solicitar
-  const { isMobile, isIOS } = detectarDispositivoMovel();
-  if (isMobile && !permissaoJaSolicitada) {
-    if (isIOS) {
-      toast.info(
-        "Você verá um prompt para permitir notificações. Por favor, toque em 'Permitir' para receber lembretes das suas tarefas.",
-        { duration: 6000 }
-      );
-    } else {
-      toast.info(
-        "Você verá um prompt para permitir notificações. Ative para receber lembretes das suas tarefas!",
-        { duration: 5000 }
-      );
-    }
-    
-    // Pequeno atraso para o usuário ler a mensagem
-    await new Promise(resolve => setTimeout(resolve, 2000));
-  }
-  
-  // Evitar solicitar muitas vezes na mesma sessão
-  if (permissaoJaSolicitada) {
-    // Usar Notification.permission diretamente
-    const concedida = (Notification.permission as string) === "granted";
-    window.notificacoesAtivas = concedida;
-    return concedida;
-  }
-  
-  // Solicitar permissão
   try {
-    console.log("Solicitando permissão para notificações...");
+    // Verificar se já tem permissão
+    if (Notification.permission === 'granted') {
+      console.log('Permissão para notificações já concedida');
+      return true;
+    }
+    
+    // Verificar se já foi negado anteriormente
+    if (Notification.permission === 'denied') {
+      console.warn('Permissão para notificações já foi negada pelo usuário');
+      // Marcar como já solicitada para não solicitar novamente na mesma sessão
+      permissaoJaSolicitada = true;
+      return false;
+    }
+    
+    // Registrar que está solicitando permissão nesta sessão
     permissaoJaSolicitada = true;
-    const permissao = await Notification.requestPermission();
     
-    console.log(`Resultado da solicitação de permissão: ${permissao}`);
-    window.notificacoesAtivas = permissao === "granted";
+    // Detecção específica para iOS
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                 (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     
-    if (permissao === "granted") {
-      toast.success("Notificações ativadas com sucesso!");
+    if (isIOS) {
+      // No iOS antes de solicitar, fazer uma pré-verificação
+      console.log('Detectado dispositivo iOS, realizando pré-verificações');
       
-      // Enviar notificação de teste para confirmar funcionamento
-      setTimeout(() => {
-        try {
-          new Notification("Notificações configuradas com sucesso!", {
-            body: "Você receberá lembretes das suas tarefas agendadas.",
-            icon: "/favicon.ico"
-          });
-        } catch (e) {
-          console.error("Erro ao enviar notificação de teste:", e);
+      // Verificar se temos armazenamento persistente (útil no iOS)
+      if ('storage' in navigator && 'persist' in navigator.storage) {
+        const isPersisted = await navigator.storage.persisted();
+        if (!isPersisted) {
+          try {
+            const persistResult = await navigator.storage.persist();
+            console.log(`Armazenamento persistente ${persistResult ? 'concedido' : 'negado'}`);
+          } catch (err) {
+            console.error('Erro ao solicitar armazenamento persistente:', err);
+          }
         }
-      }, 1500);
-    } else if (permissao === "denied") {
-      toast.error("Permissão para notificações negada. Você não receberá lembretes de tarefas.");
-    } else {
-      toast.warning("Permissão para notificações ainda pendente. Algumas funções podem não funcionar corretamente.");
+      }
     }
     
-    return permissao === "granted";
-  } catch (error) {
-    console.error("Erro ao solicitar permissão para notificações:", error);
+    // Solicitar permissão
+    console.log('Solicitando permissão para notificações');
+    const permission = await Notification.requestPermission();
     
-    // Abordagem de fallback para navegadores mais antigos
-    try {
-      console.log("Tentando método alternativo de solicitação de permissão...");
-      Notification.requestPermission(function(permission) {
-        window.notificacoesAtivas = permission === "granted";
-        return permission === "granted";
-      });
+    if (permission === 'granted') {
+      console.log('Permissão para notificações concedida');
       
-      return false;
-    } catch (fallbackError) {
-      console.error("Falha na abordagem alternativa:", fallbackError);
-      toast.error("Não foi possível solicitar permissão para notificações");
-      window.notificacoesAtivas = false;
-      return false;
+      // No iOS, fazer etapa adicional para garantir
+      if (isIOS) {
+        try {
+          // Enviar uma notificação de teste silenciosa para validar permissão
+          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            console.log('Enviando notificação de teste para validar permissão no iOS');
+            navigator.serviceWorker.controller.postMessage({
+              type: 'TEST_NOTIFICATION',
+              silent: true
+            });
+          }
+          
+          // Armazenar no localStorage que permissão foi concedida
+          localStorage.setItem('notificacaoPermissaoConcedida', 'true');
+        } catch (error) {
+          console.error('Erro em etapa adicional para iOS:', error);
+        }
+      }
+      
+      return true;
     }
+    
+    console.warn(`Permissão para notificações: ${permission}`);
+    return false;
+  } catch (error) {
+    console.error('Erro ao solicitar permissão para notificações:', error);
+    return false;
   }
-};
+}
 
 /**
  * Reproduz um som de notificação

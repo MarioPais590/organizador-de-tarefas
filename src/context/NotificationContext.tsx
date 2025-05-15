@@ -99,9 +99,54 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setConfiguracoes(prev => {
       const novasConfiguracoes = { ...prev, ...config };
       
+      console.log('Atualizando configurações de notificação:', novasConfiguracoes);
+      
+      // Salvar imediatamente no localStorage
+      try {
+        localStorage.setItem('configuracoesNotificacao', JSON.stringify(novasConfiguracoes));
+        console.log('Configurações de notificação salvas no localStorage');
+      } catch (e) {
+        console.error('Erro ao salvar configurações no localStorage:', e);
+      }
+      
       // Salvar no cache para o service worker
       salvarConfiguracoesCache(novasConfiguracoes)
-        .catch(error => console.error('Erro ao salvar configurações de notificação no cache:', error));
+        .then(() => {
+          console.log('Configurações de notificação salvas com sucesso no cache');
+        })
+        .catch(error => {
+          console.error('Erro ao salvar configurações de notificação no cache:', error);
+        });
+      
+      // Verificar se estamos no iOS para manipulação especial
+      if (dispositivo.isIOS) {
+        // No iOS, forçamos uma persistência adicional para garantir
+        setTimeout(() => {
+          try {
+            // Verificar se as configurações foram realmente salvas
+            const savedConfigStr = localStorage.getItem('configuracoesNotificacao');
+            if (savedConfigStr) {
+              const savedConfig = JSON.parse(savedConfigStr);
+              
+              // Comparar os valores para garantir que foram salvos corretamente
+              if (savedConfig.ativadas !== novasConfiguracoes.ativadas || 
+                  savedConfig.comSom !== novasConfiguracoes.comSom ||
+                  savedConfig.antecedencia.valor !== novasConfiguracoes.antecedencia.valor ||
+                  savedConfig.antecedencia.unidade !== novasConfiguracoes.antecedencia.unidade) {
+                
+                console.log('Discrepância detectada nas configurações salvas, tentando novamente');
+                localStorage.setItem('configuracoesNotificacao', JSON.stringify(novasConfiguracoes));
+                
+                // Salvar novamente no cache também
+                salvarConfiguracoesCache(novasConfiguracoes)
+                  .catch(error => console.error('Erro na segunda tentativa:', error));
+              }
+            }
+          } catch (error) {
+            console.error('Erro na verificação de persistência de configurações:', error);
+          }
+        }, 300); // Pequeno atraso para garantir que a operação de armazenamento anterior seja concluída
+      }
       
       return novasConfiguracoes;
     });
@@ -201,18 +246,51 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
         const configSalvas = localStorage.getItem('configuracoesNotificacao');
         if (configSalvas) {
-          const configParsed = JSON.parse(configSalvas);
-          setConfiguracoes(configParsed);
-          
-          // Também salvar no IndexedDB para o service worker
-          if (configParsed && Notification.permission === 'granted') {
-            salvarConfiguracoesCache(configParsed)
-              .catch(error => console.error('Erro ao salvar configurações no IndexedDB:', error));
+          try {
+            const configParsed = JSON.parse(configSalvas);
+            console.log('Carregando configurações salvas:', configParsed);
+            
+            // Verificar se os dados são válidos
+            if (configParsed && 
+                typeof configParsed === 'object' && 
+                typeof configParsed.ativadas === 'boolean' &&
+                configParsed.antecedencia && 
+                typeof configParsed.antecedencia.valor === 'number') {
+              
+              // Atualizar com os valores válidos
+              setConfiguracoes(configParsed);
+              
+              // Também salvar no IndexedDB para o service worker
+              if (configParsed && (Notification.permission === 'granted' || dispositivo.isIOS)) {
+                salvarConfiguracoesCache(configParsed)
+                  .catch(error => console.error('Erro ao salvar configurações no IndexedDB:', error));
+              }
+            } else {
+              console.warn('Configurações salvas com formato inválido:', configParsed);
+              // Se inválido, salvar as configurações padrão
+              localStorage.setItem('configuracoesNotificacao', JSON.stringify(configuracoesNotificacaoPadrao));
+            }
+          } catch (parseError) {
+            console.error('Erro ao processar configurações salvas:', parseError);
+            // Restaurar para valores padrão em caso de erro
+            localStorage.setItem('configuracoesNotificacao', JSON.stringify(configuracoesNotificacaoPadrao));
           }
+        } else if (dispositivo.isIOS) {
+          // No iOS, garantir que as configurações padrão sejam salvas se não existirem
+          console.log('Configurações não encontradas, inicializando com padrão para iOS');
+          localStorage.setItem('configuracoesNotificacao', JSON.stringify(configuracoesNotificacaoPadrao));
+          salvarConfiguracoesCache(configuracoesNotificacaoPadrao)
+            .catch(error => console.error('Erro ao salvar configurações iniciais:', error));
         }
       }
     } catch (error) {
       console.error("Erro ao carregar configurações de notificação:", error);
+      // Tentar restaurar para valores padrão em caso de erro
+      try {
+        localStorage.setItem('configuracoesNotificacao', JSON.stringify(configuracoesNotificacaoPadrao));
+      } catch (e) {
+        console.error('Falha ao restaurar configurações padrão:', e);
+      }
     }
     
     // Se for um dispositivo móvel, mostrar informações úteis

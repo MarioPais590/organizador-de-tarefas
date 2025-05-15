@@ -124,34 +124,70 @@ export async function salvarTarefasNoCache(tarefas: Tarefa[]): Promise<void> {
  * @param config Configurações de notificação
  */
 export async function salvarConfiguracoesCache(config: ConfiguracoesNotificacao): Promise<void> {
+  // Primeiro salvar no localStorage para garantir, especialmente para iOS
   try {
-    const db = await abrirDB();
+    localStorage.setItem('configuracoesNotificacao', JSON.stringify(config));
+    console.log('[Storage] Configurações salvas no localStorage:', config);
+  } catch (lsError) {
+    console.error('Erro ao salvar configurações no localStorage:', lsError);
+  }
+  
+  // Depois salvar no IndexedDB para o service worker
+  try {
+    const db = await abrirDB().catch(err => {
+      throw new Error(`Falha ao abrir IndexedDB: ${err.message}`);
+    });
+    
     const transaction = db.transaction([STORE_CONFIGURACOES], 'readwrite');
     const store = transaction.objectStore(STORE_CONFIGURACOES);
     
-    store.put({
+    // Salvar com ID fixo para facilitar recuperação
+    const configData = {
       id: 'notificacoes',
-      ...config
+      ...config,
+      timestamp: Date.now() // Adicionar timestamp para verificação de alterações
+    };
+    
+    const request = store.put(configData);
+    
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => {
+        console.log('[Storage] Configurações de notificação salvas no IndexedDB:', configData);
+        
+        // Adicionar tentativa de sincronização com o Service Worker se disponível
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'UPDATE_CONFIG',
+            config: configData
+          });
+          console.log('[Storage] Enviada atualização de configuração para o Service Worker');
+        }
+        
+        db.close();
+        resolve();
+      };
+      
+      request.onerror = (event) => {
+        console.error('Erro na transação de salvar configurações:', event);
+        db.close();
+        reject(new Error('Falha ao salvar configurações no IndexedDB'));
+      };
+      
+      // Adicionar handler para erros de transação
+      transaction.onerror = (event) => {
+        console.error('Erro na transação de configurações:', event);
+        reject(new Error('Erro na transação do IndexedDB'));
+      };
+      
+      transaction.onabort = (event) => {
+        console.error('Transação abortada:', event);
+        reject(new Error('Transação abortada'));
+      };
     });
-    
-    transaction.oncomplete = () => {
-      console.log('[Storage] Configurações de notificação salvas no IndexedDB');
-      db.close();
-    };
-    
-    transaction.onerror = (event) => {
-      console.error('Erro na transação de salvar configurações:', event);
-      db.close();
-    };
   } catch (error) {
     console.error('Erro ao salvar configurações no IndexedDB:', error);
     
-    // Fallback para localStorage (já deve existir em configurações)
-    try {
-      localStorage.setItem('configuracoesNotificacao', JSON.stringify(config));
-    } catch (lsError) {
-      console.error('Erro ao salvar configurações no localStorage:', lsError);
-    }
+    // Já salvamos no localStorage acima, então não precisamos fazer novamente aqui
   }
 }
 

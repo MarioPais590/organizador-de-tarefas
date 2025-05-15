@@ -5,7 +5,7 @@
  */
 
 // Nome do cache
-const CACHE_NAME = 'organizador-tarefas-v2';
+const CACHE_NAME = 'organizador-tarefas-v3';
 
 // Configurações de verificação periódica
 let CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutos por padrão
@@ -48,7 +48,20 @@ const urlsToCache = [
 // Evento de instalação - pré-cachear arquivos
 self.addEventListener('install', event => {
   console.log('[Service Worker] Instalando...');
-  // Ativar imediatamente
+  
+  // Pré-cachear arquivos essenciais
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        console.log('[Service Worker] Pré-cacheando arquivos');
+        return cache.addAll(urlsToCache);
+      })
+      .catch(error => {
+        console.error('[Service Worker] Erro ao pré-cachear arquivos:', error);
+      })
+  );
+  
+  // Ativar imediatamente sem esperar que outros service workers terminem
   self.skipWaiting();
 });
 
@@ -56,8 +69,29 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   console.log('[Service Worker] Ativado!');
   
-  // Reivindicar clientes para este service worker
-  event.waitUntil(clients.claim());
+  // Limpar caches antigos
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            console.log('[Service Worker] Eliminando cache antigo:', cacheName);
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
+    .then(() => {
+      // Limpar qualquer cache de API ou dados antigos
+      if ('indexedDB' in self) {
+        console.log('[Service Worker] Verificando cache IndexedDB antigo');
+        // Aqui poderia adicionar lógica para limpar dados antigos do IndexedDB se necessário
+      }
+      
+      console.log('[Service Worker] Tomando controle de todas as abas');
+      return self.clients.claim(); // Tomar controle de todas as abas abertas sem recarregar
+    })
+  );
   
   // Iniciar heartbeat para manter service worker ativo
   iniciarHeartbeat();
@@ -206,53 +240,123 @@ self.addEventListener('notificationclose', event => {
 self.addEventListener('message', event => {
   const data = event.data;
   
-  if (data && data.type) {
-    switch (data.type) {
-      case 'APP_BACKGROUND':
-        console.log('[Service Worker] Aplicativo entrou em segundo plano');
-        isBackgroundMode = true;
-        backgroundStartTime = Date.now();
-        iniciarVerificacaoEmSegundoPlano();
-        break;
+  if (!data || !data.type) {
+    return;
+  }
+  
+  console.log('[Service Worker] Mensagem recebida:', data.type);
+  
+  switch (data.type) {
+    case 'APP_BACKGROUND':
+      console.log('[Service Worker] Aplicativo entrou em segundo plano');
+      isBackgroundMode = true;
+      backgroundStartTime = Date.now();
+      iniciarVerificacaoEmSegundoPlano();
+      break;
+      
+    case 'APP_FOREGROUND':
+      console.log('[Service Worker] Aplicativo voltou para o primeiro plano');
+      isBackgroundMode = false;
+      pararVerificacaoEmSegundoPlano();
+      break;
+      
+    case 'CHECK_NOW':
+      console.log('[Service Worker] Solicitação para verificar tarefas imediatamente');
+      verificarTarefasPendentes();
+      break;
+      
+    case 'REGISTER_PUSH':
+      console.log('[Service Worker] Solicitação para registrar para notificações push');
+      registrarParaNotificacoesPush(data.subscription);
+      break;
+      
+    case 'UPDATE_CONFIG':
+      console.log('[Service Worker] Atualização de configurações recebida');
+      if (data.config) {
+        // Salvar configurações no IndexedDB
+        salvarConfiguracoesNoDB(data.config)
+          .then(success => {
+            console.log(`[Service Worker] Configurações ${success ? 'salvas' : 'não salvas'} no IndexedDB`);
+            
+            // Confirmar recebimento
+            if (event.source) {
+              event.source.postMessage({
+                type: 'CONFIG_UPDATED',
+                success: success,
+                timestamp: Date.now()
+              });
+            }
+          })
+          .catch(error => {
+            console.error('[Service Worker] Erro ao salvar configurações:', error);
+          });
+      }
+      break;
+      
+    case 'UPDATE_TAREFAS_CACHE':
+      if (Array.isArray(data.tarefas)) {
+        console.log('[Service Worker] Atualizando cache de tarefas:', data.tarefas.length);
+        tarefasCache = data.tarefas;
         
-      case 'APP_FOREGROUND':
-        console.log('[Service Worker] Aplicativo voltou para o primeiro plano');
-        isBackgroundMode = false;
-        pararVerificacaoEmSegundoPlano();
-        break;
-        
-      case 'CHECK_NOW':
-        console.log('[Service Worker] Solicitação para verificar tarefas imediatamente');
-        verificarTarefasPendentes();
-        break;
-        
-      case 'REGISTER_PUSH':
-        console.log('[Service Worker] Solicitação para registrar para notificações push');
-        registrarParaNotificacoesPush(data.subscription);
-        break;
-        
-      case 'UPDATE_CONFIG':
-        console.log('[Service Worker] Atualização de configurações');
-        atualizarConfiguracoes(data.config);
-        break;
-        
-      case 'UPDATE_TAREFAS_CACHE':
-        if (Array.isArray(data.tarefas)) {
-          console.log('[Service Worker] Atualizando cache de tarefas:', data.tarefas.length);
-          tarefasCache = data.tarefas;
+        // Confirmar recebimento
+        if (event.source) {
+          event.source.postMessage({
+            type: 'TAREFAS_CACHE_UPDATED',
+            count: tarefas.length,
+            timestamp: Date.now()
+          });
         }
-        break;
-        
-      case 'CHECK_PENDING_MESSAGES':
-        console.log('[Service Worker] Verificando mensagens pendentes');
-        enviarMensagensPendentes(event.source);
-        break;
-        
-      case 'TEST_NOTIFICATION':
-        console.log('[Service Worker] Evento de teste de notificação recebido');
-        enviarNotificacaoTeste(event.source);
-        break;
-    }
+      }
+      break;
+      
+    case 'CHECK_PENDING_MESSAGES':
+      console.log('[Service Worker] Verificando mensagens pendentes');
+      enviarMensagensPendentes(event.source);
+      break;
+      
+    case 'TEST_NOTIFICATION':
+      console.log('[Service Worker] Solicitação de notificação de teste');
+      enviarNotificacaoTeste(event.source, data.silent);
+      break;
+      
+    case 'FORCE_ACTIVATION':
+      console.log('[Service Worker] Forçando ativação do Service Worker');
+      self.skipWaiting()
+        .then(() => self.clients.claim())
+        .then(() => {
+          console.log('[Service Worker] Ativação forçada concluída');
+          // Notificar todos os clientes
+          self.clients.matchAll().then(clients => {
+            clients.forEach(client => {
+              client.postMessage({
+                type: 'SERVICE_WORKER_ACTIVATED',
+                timestamp: Date.now()
+              });
+            });
+          });
+        })
+        .catch(err => {
+          console.error('[Service Worker] Erro na ativação forçada:', err);
+        });
+      break;
+      
+    case 'CACHE_STATUS':
+      // Responder com status do cache
+      caches.keys().then(cacheNames => {
+        if (event.source) {
+          event.source.postMessage({
+            type: 'CACHE_STATUS_RESPONSE',
+            caches: cacheNames,
+            currentCache: CACHE_NAME,
+            timestamp: Date.now()
+          });
+        }
+      });
+      break;
+      
+    default:
+      console.log(`[Service Worker] Tipo de mensagem desconhecido: ${data.type}`);
+      break;
   }
 });
 
@@ -525,7 +629,7 @@ async function verificarTarefasPendentes() {
     }
     
     // Buscar configurações de notificações
-    const config = await buscarConfiguracoes();
+    const config = await obterConfiguracoesNotificacao();
     
     if (!config || !config.ativadas) {
       console.log('[Service Worker] Notificações desativadas nas configurações');
@@ -678,23 +782,174 @@ async function obterConfiguracoesNotificacao() {
   };
   
   try {
-    // Tentar acessar configurações via clients
-    const clientList = await clients.matchAll();
+    // Primeiro tentar buscar do IndexedDB
+    const config = await buscarConfiguracoesDoDB();
+    if (config) {
+      console.log('[Service Worker] Configurações obtidas do IndexedDB:', config);
+      return config;
+    }
+    
+    // Ou tentar acessar via localStorage através de clients
+    const clientList = await clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true
+    });
+    
     if (clientList.length > 0) {
-      const configStr = await clientList[0].evaluate(() => {
-        return localStorage.getItem('configuracoesNotificacao');
-      });
-      
-      if (configStr) {
-        return JSON.parse(configStr);
+      try {
+        for (const client of clientList) {
+          try {
+            // Avaliação especial para iOS
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const configStr = await client.evaluate(() => {
+              return localStorage.getItem('configuracoesNotificacao');
+            });
+            
+            if (configStr) {
+              const configParsed = JSON.parse(configStr);
+              console.log('[Service Worker] Configurações recuperadas via client:', configParsed);
+              
+              // Armazenar no IndexedDB para uso futuro
+              await salvarConfiguracoesNoDB(configParsed);
+              
+              return configParsed;
+            }
+          } catch (clientError) {
+            console.error('[Service Worker] Erro ao acessar client:', clientError);
+          }
+        }
+      } catch (evalError) {
+        console.error('[Service Worker] Erro ao avaliar localStorage via client:', evalError);
       }
     }
     
+    console.log('[Service Worker] Usando configurações padrão de notificação');
     return configPadrao;
   } catch (error) {
     console.error('[Service Worker] Erro ao obter configurações de notificação:', error);
     return configPadrao;
   }
+}
+
+// Função auxiliar para buscar configurações do IndexedDB
+async function buscarConfiguracoesDoDB() {
+  return new Promise((resolve, reject) => {
+    try {
+      const request = indexedDB.open('organizador-tarefas-db', 1);
+      
+      request.onerror = (event) => {
+        console.error('[Service Worker] Erro ao abrir IndexedDB para configurações:', event);
+        resolve(null);
+      };
+      
+      request.onsuccess = (event) => {
+        try {
+          const db = event.target.result;
+          if (!db.objectStoreNames.contains('configuracoes')) {
+            console.warn('[Service Worker] Store de configurações não encontrada');
+            db.close();
+            resolve(null);
+            return;
+          }
+          
+          const transaction = db.transaction(['configuracoes'], 'readonly');
+          const store = transaction.objectStore('configuracoes');
+          const getRequest = store.get('notificacoes');
+          
+          getRequest.onsuccess = (event) => {
+            const config = event.target.result;
+            db.close();
+            resolve(config);
+          };
+          
+          getRequest.onerror = (event) => {
+            console.error('[Service Worker] Erro ao obter configurações do IndexedDB:', event);
+            db.close();
+            resolve(null);
+          };
+        } catch (dbError) {
+          console.error('[Service Worker] Erro ao acessar IndexedDB para configurações:', dbError);
+          resolve(null);
+        }
+      };
+      
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        
+        // Criar store se não existir
+        if (!db.objectStoreNames.contains('configuracoes')) {
+          db.createObjectStore('configuracoes', { keyPath: 'id' });
+        }
+      };
+    } catch (error) {
+      console.error('[Service Worker] Erro crítico ao acessar IndexedDB:', error);
+      resolve(null);
+    }
+  });
+}
+
+// Função auxiliar para salvar configurações no IndexedDB
+async function salvarConfiguracoesNoDB(config) {
+  return new Promise((resolve, reject) => {
+    try {
+      const request = indexedDB.open('organizador-tarefas-db', 1);
+      
+      request.onerror = (event) => {
+        console.error('[Service Worker] Erro ao abrir IndexedDB para salvar configurações:', event);
+        resolve(false);
+      };
+      
+      request.onsuccess = (event) => {
+        try {
+          const db = event.target.result;
+          if (!db.objectStoreNames.contains('configuracoes')) {
+            console.warn('[Service Worker] Store de configurações não encontrada para salvar');
+            db.close();
+            resolve(false);
+            return;
+          }
+          
+          const transaction = db.transaction(['configuracoes'], 'readwrite');
+          const store = transaction.objectStore('configuracoes');
+          
+          const configData = {
+            id: 'notificacoes',
+            ...config,
+            timestamp: Date.now()
+          };
+          
+          const putRequest = store.put(configData);
+          
+          putRequest.onsuccess = () => {
+            console.log('[Service Worker] Configurações salvas no IndexedDB');
+            db.close();
+            resolve(true);
+          };
+          
+          putRequest.onerror = (event) => {
+            console.error('[Service Worker] Erro ao salvar configurações no IndexedDB:', event);
+            db.close();
+            resolve(false);
+          };
+        } catch (dbError) {
+          console.error('[Service Worker] Erro ao acessar IndexedDB para salvar:', dbError);
+          resolve(false);
+        }
+      };
+      
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        
+        // Criar store se não existir
+        if (!db.objectStoreNames.contains('configuracoes')) {
+          db.createObjectStore('configuracoes', { keyPath: 'id' });
+        }
+      };
+    } catch (error) {
+      console.error('[Service Worker] Erro crítico ao salvar no IndexedDB:', error);
+      resolve(false);
+    }
+  });
 }
 
 // Verificar se uma tarefa deve ser notificada
@@ -963,7 +1218,7 @@ function enviarMensagensPendentes(client) {
 }
 
 // Função para enviar uma notificação de teste do service worker
-async function enviarNotificacaoTeste(client) {
+async function enviarNotificacaoTeste(client, silent) {
   try {
     console.log('[Service Worker] Enviando notificação de teste');
     
@@ -977,7 +1232,8 @@ async function enviarNotificacaoTeste(client) {
       vibrate: [100, 50, 100],
       data: {
         url: '/settings/notificacoes',
-        test: true
+        test: true,
+        silent: silent
       }
     });
     
